@@ -67,10 +67,20 @@ Each keeps its own SQLAlchemy ORM models and repositories — no ORM code lives 
 
 ## Development commands
 
-See [Commands](README.md#commands) in README.md for the full list of `make` targets.
+See [`docs/development.md`](docs/development.md) for the complete development workflow:
+- Database commands (local-up, db-reset, adminer-up, etc.)
+- Migration commands (migrate, rollback, migration-check)
+- Quality checks (lint, check)
+- Common workflows (schema.sql vs Alembic, adding tables)
 
-Run from an activated virtualenv: `source .venv/bin/activate && make <target>`
-or: `PATH=.venv/bin:$PATH make <target>`.
+Quick reference:
+
+```bash
+make local-up              # full bootstrap: DB + schema + base seed
+make local-up-test         # same + test fixtures
+make migrate               # alembic upgrade head
+make check                 # lint + migration-check
+```
 
 ## Git hooks
 
@@ -103,12 +113,20 @@ Alembic migration files are the **authoritative source of truth** for production
 
 ## Adding a migration
 
-1. Write the new version file in `alembic/versions/` following the `NNNN_description.py` convention.
-2. Set `revision` and `down_revision` correctly.
-3. Write `upgrade()` and `downgrade()` using raw SQL via `op.execute()`.
-4. Run `make migrate` to apply and `make rollback` to verify the downgrade path.
-5. Run `make check` — must pass clean.
-6. Commit. CI runs `alembic upgrade head` + `alembic check` on every PR.
+See [`docs/migrations.md`](docs/migrations.md) for the complete migration guide:
+- Creating a new migration (step-by-step)
+- Migration patterns (add table, column, index, FK, data migration)
+- Invariants (never violate)
+- Testing migrations (upgrade, downgrade, from scratch)
+- Common mistakes and best practices
+
+Quick reference:
+
+1. Create `alembic/versions/NNNN_description.py` with correct `revision` and `down_revision`
+2. Implement `upgrade()` and `downgrade()` using raw SQL via `op.execute()`
+3. Update `db/01_schema.sql` with corresponding DDL
+4. Run `make migrate` to apply; `make rollback` to verify downgrade
+5. Run `make check` - must pass clean before committing
 
 ## Invariants (never violate)
 
@@ -125,7 +143,18 @@ Alembic migration files are the **authoritative source of truth** for production
 
 ## CI
 
-See [CI](README.md#ci) in README.md. A manual approval gate is required before migrations execute.
+See [`docs/ci.md`](docs/ci.md) for the complete CI guide:
+- Pipeline structure (test job, manual approval gate)
+- Migration application workflow (Cloud Run Job)
+- Common CI failures and solutions
+- Rollback strategy
+- Deployment coordination with pf-rates and pf-payroll
+
+Quick reference:
+
+- **Every PR:** `alembic upgrade head` + `alembic check` against fresh postgres:16
+- **Manual approval:** Required before migrations run in production
+- **Production:** Cloud Run Job applies migrations before services start
 
 ## Versioning
 
