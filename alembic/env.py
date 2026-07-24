@@ -10,9 +10,10 @@ from logging.config import fileConfig
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-from alembic import context
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine
+
+from alembic import context
 
 # Load .env from the project root (one level above alembic/).
 # Must run before the first call to _database_url().
