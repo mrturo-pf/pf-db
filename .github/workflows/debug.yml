@@ -1,0 +1,166 @@
+name: Debug CI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Checkout pf-db
+      - name: Checkout pf-db
+        uses: actions/checkout@v4
+
+      # Setup Python
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      # Debug: Environment info
+      - name: Debug - Environment info
+        run: |
+          echo "========================================="
+          echo "ENVIRONMENT INFORMATION"
+          echo "========================================="
+          echo "Working directory: $(pwd)"
+          echo "Python version: $(python --version)"
+          echo "pip version: $(pip --version)"
+          echo ""
+          echo "========================================="
+          echo "DIRECTORY STRUCTURE"
+          echo "========================================="
+          ls -la
+          echo ""
+          echo "========================================="
+          echo "ALEMBIC DIRECTORY"
+          echo "========================================="
+          ls -la alembic/ | head -20
+          echo ""
+          echo "========================================="
+          echo "DB DIRECTORY"
+          echo "========================================="
+          ls -la db/ | head -20
+
+      # Instalar dependencias
+      - name: Install dependencies
+        run: |
+          echo "========================================="
+          echo "INSTALLING DEPENDENCIES"
+          echo "========================================="
+          pip install -e ".[dev]"
+          echo ""
+          echo "========================================="
+          echo "INSTALLED PACKAGES"
+          echo "========================================="
+          pip list
+
+      # Debug: Tool versions
+      - name: Debug - Tool versions
+        run: |
+          echo "========================================="
+          echo "TOOL VERSIONS"
+          echo "========================================="
+          echo "ruff version:"
+          ruff --version
+          echo ""
+          echo "alembic version:"
+          alembic --version
+          echo ""
+          echo "python-dotenv version:"
+          pip show python-dotenv | grep Version
+
+      # Step 1: Lint (fix mode)
+      - name: Step 1 - Lint (fix mode)
+        run: |
+          echo "========================================="
+          echo "STEP 1: LINT (FIX MODE)"
+          echo "========================================="
+          echo "Checking alembic/..."
+          ruff check --fix --exit-zero alembic/
+          echo ""
+          echo "Checking db/..."
+          ruff check --fix --exit-zero db/
+          echo "Exit code: $?"
+
+      # Step 2: Format
+      - name: Step 2 - Format
+        run: |
+          echo "========================================="
+          echo "STEP 2: FORMAT"
+          echo "========================================="
+          echo "Formatting alembic/..."
+          ruff format alembic/
+          echo ""
+          echo "Formatting db/..."
+          ruff format db/
+          echo "Exit code: $?"
+
+      # Step 3: Lint (strict mode)
+      - name: Step 3 - Lint (strict mode)
+        run: |
+          echo "========================================="
+          echo "STEP 3: LINT (STRICT MODE)"
+          echo "========================================="
+          echo "Checking alembic/..."
+          ruff check alembic/ 2>&1 | tee /tmp/lint-alembic.txt
+          ALEMBIC_EXIT=${PIPESTATUS[0]}
+          echo ""
+          echo "Checking db/..."
+          ruff check db/ 2>&1 | tee /tmp/lint-db.txt
+          DB_EXIT=${PIPESTATUS[0]}
+          echo ""
+          echo "Alembic exit code: $ALEMBIC_EXIT"
+          echo "DB exit code: $DB_EXIT"
+          
+          if [ $ALEMBIC_EXIT -ne 0 ] || [ $DB_EXIT -ne 0 ]; then
+            echo ""
+            echo "========================================="
+            echo "LINT ERRORS FOUND"
+            echo "========================================="
+            if [ $ALEMBIC_EXIT -ne 0 ]; then
+              echo "--- ALEMBIC ERRORS ---"
+              cat /tmp/lint-alembic.txt
+              echo ""
+            fi
+            if [ $DB_EXIT -ne 0 ]; then
+              echo "--- DB ERRORS ---"
+              cat /tmp/lint-db.txt
+            fi
+            exit 1
+          fi
+          echo ""
+          echo "All lint checks passed!"
+
+      # Step 4: Migration check (verify alembic files are valid)
+      - name: Step 4 - Migration structure validation
+        run: |
+          echo "========================================="
+          echo "STEP 4: MIGRATION STRUCTURE VALIDATION"
+          echo "========================================="
+          echo "Checking alembic.ini exists..."
+          test -f alembic.ini && echo "  alembic.ini: OK" || echo "  alembic.ini: MISSING"
+          echo ""
+          echo "Checking alembic/env.py exists..."
+          test -f alembic/env.py && echo "  alembic/env.py: OK" || echo "  alembic/env.py: MISSING"
+          echo ""
+          echo "Checking versions directory..."
+          test -d alembic/versions && echo "  alembic/versions/: OK" || echo "  alembic/versions/: MISSING"
+          echo ""
+          echo "Migration files found:"
+          ls -1 alembic/versions/*.py 2>/dev/null | wc -l
+          echo ""
+          echo "Listing migration files:"
+          ls -lh alembic/versions/*.py 2>/dev/null || echo "  No migration files found"
+
+      # Final summary
+      - name: Final Summary
+        if: always()
+        run: |
+          echo "========================================="
+          echo "DEBUG WORKFLOW COMPLETED"
+          echo "========================================="
+          echo "pf-db debug workflow finished."
+          echo "This is a simplified debug workflow for database migrations."
+          echo "Check individual steps above for details."
