@@ -173,7 +173,7 @@ jobs:
           mail_password: ${{ secrets.MAIL_PASSWORD }}
           mail_from: ${{ secrets.MAIL_FROM }}
           mail_to: ${{ secrets.MAIL_TO }}
-          subject: "[SUCCESS] pf-db migrations deployed — ${{ github.sha }}"
+          subject: "[SUCCESS] pf-db migrations deployed — ${{ github.ref_name }}"
           body: |
             pf-db migrations deployed successfully to Neon.
 
