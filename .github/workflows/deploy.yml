@@ -122,16 +122,22 @@ jobs:
       (needs.check.result == 'failure' || needs.migrate.result == 'failure')
 
     steps:
-      - name: Send failure email
-        uses: dawidd6/action-send-mail@v18
+      - name: Checkout pf-common for composite actions
+        uses: actions/checkout@v7.0.0
         with:
-          server_address: ${{ secrets.MAIL_SERVER }}
-          server_port: ${{ secrets.MAIL_PORT }}
-          username: ${{ secrets.MAIL_USERNAME }}
-          password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "❌ [pf-db] Pipeline failed — ${{ github.ref_name }}"
-          to: ${{ secrets.MAIL_TO }}
-          from: ${{ secrets.MAIL_FROM }}
+          repository: mrturo-pf/pf-common
+          path: .pf-common
+
+      - name: Send failure email
+        uses: ./.pf-common/.github/actions/send-email
+        with:
+          mail_server: ${{ secrets.MAIL_SERVER }}
+          mail_port: ${{ secrets.MAIL_PORT }}
+          mail_username: ${{ secrets.MAIL_USERNAME }}
+          mail_password: ${{ secrets.MAIL_PASSWORD }}
+          mail_from: ${{ secrets.MAIL_FROM }}
+          mail_to: ${{ secrets.MAIL_TO }}
+          subject: "[FAILED] pf-db pipeline — ${{ github.ref_name }}"
           body: |
             One or more jobs failed in the pf-db CI/CD pipeline.
 
@@ -152,16 +158,22 @@ jobs:
     if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - name: Send success email
-        uses: dawidd6/action-send-mail@v18
+      - name: Checkout pf-common for composite actions
+        uses: actions/checkout@v7.0.0
         with:
-          server_address: ${{ secrets.MAIL_SERVER }}
-          server_port: ${{ secrets.MAIL_PORT }}
-          username: ${{ secrets.MAIL_USERNAME }}
-          password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "✅ [pf-db] Migrations deployed — ${{ github.sha }}"
-          to: ${{ secrets.MAIL_TO }}
-          from: ${{ secrets.MAIL_FROM }}
+          repository: mrturo-pf/pf-common
+          path: .pf-common
+
+      - name: Send success email
+        uses: ./.pf-common/.github/actions/send-email
+        with:
+          mail_server: ${{ secrets.MAIL_SERVER }}
+          mail_port: ${{ secrets.MAIL_PORT }}
+          mail_username: ${{ secrets.MAIL_USERNAME }}
+          mail_password: ${{ secrets.MAIL_PASSWORD }}
+          mail_from: ${{ secrets.MAIL_FROM }}
+          mail_to: ${{ secrets.MAIL_TO }}
+          subject: "[SUCCESS] pf-db migrations deployed — ${{ github.sha }}"
           body: |
             pf-db migrations deployed successfully to Neon.
 
