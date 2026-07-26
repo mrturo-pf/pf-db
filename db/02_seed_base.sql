@@ -12,7 +12,7 @@ BEGIN;
 -- ============================================================
 -- 1. Currencies and index units
 -- ============================================================
-INSERT INTO currencies (code, name, is_fiat, unit_kind) VALUES
+INSERT INTO RAT_CURRENCY (code, name, is_fiat, unit_kind) VALUES
     ('CLP', 'Peso chileno',              TRUE,  'currency'),
     ('USD', 'US Dollar',                 TRUE,  'currency'),
     ('EUR', 'Euro',                      TRUE,  'currency'),
@@ -24,12 +24,12 @@ SET
     is_fiat   = EXCLUDED.is_fiat,
     unit_kind = EXCLUDED.unit_kind;
 
-DELETE FROM currencies WHERE code NOT IN ('CLP', 'USD', 'EUR', 'UF', 'UTM');
+DELETE FROM RAT_CURRENCY WHERE code NOT IN ('CLP', 'USD', 'EUR', 'UF', 'UTM');
 
 -- ============================================================
 -- 2. Pension institutions
 -- ============================================================
-INSERT INTO pension_institutions (code, name, mandatory_rate, is_active) VALUES
+INSERT INTO PAY_PENS_INST (code, name, mandatory_rate, is_active) VALUES
     ('AFP_CAPITAL',  'AFP Capital',  0.10, FALSE),
     ('AFP_CUPRUM',   'AFP Cuprum',   0.10, FALSE),
     ('AFP_HABITAT',  'AFP Habitat',  0.10, FALSE),
@@ -43,7 +43,7 @@ SET
     mandatory_rate = EXCLUDED.mandatory_rate,
     is_active      = EXCLUDED.is_active;
 
-DELETE FROM pension_institutions WHERE code NOT IN (
+DELETE FROM PAY_PENS_INST WHERE code NOT IN (
     'AFP_CAPITAL', 'AFP_CUPRUM', 'AFP_HABITAT', 'AFP_MODELO',
     'AFP_PLANVITAL', 'AFP_PROVIDA', 'AFP_UNO'
 );
@@ -51,7 +51,7 @@ DELETE FROM pension_institutions WHERE code NOT IN (
 -- ============================================================
 -- 3. Health institutions
 -- ============================================================
-INSERT INTO health_institutions (code, name, kind, mandatory_rate, is_active) VALUES
+INSERT INTO PAY_HLTH_INST (code, name, kind, mandatory_rate, is_active) VALUES
     ('FONASA',       'Fonasa',        'fonasa', 0.07, FALSE),
     ('BANMEDICA',    'Banmedica',     'isapre', 0.07, FALSE),
     ('COLMENA',      'Colmena',       'isapre', 0.07, FALSE),
@@ -67,7 +67,7 @@ SET
     mandatory_rate = EXCLUDED.mandatory_rate,
     is_active      = EXCLUDED.is_active;
 
-DELETE FROM health_institutions WHERE code NOT IN (
+DELETE FROM PAY_HLTH_INST WHERE code NOT IN (
     'FONASA', 'BANMEDICA', 'COLMENA', 'CONSALUD',
     'CRUZBLANCA', 'ESENCIAL', 'NUEVA_MASVIDA', 'VIDA_TRES'
 );
@@ -75,7 +75,7 @@ DELETE FROM health_institutions WHERE code NOT IN (
 -- ============================================================
 -- 4. Contribution caps
 -- ============================================================
-INSERT INTO contribution_caps (cap_type, valid_from, valid_to, value_uf) VALUES
+INSERT INTO PAY_CNTRB_CAP (cap_type, valid_from, valid_to, value_uf) VALUES
     ('pension_health', DATE '2018-01-01', NULL, 90.0600),
     ('unemployment',   DATE '2018-01-01', NULL, 135.0900)
 ON CONFLICT (cap_type, valid_from) DO UPDATE
@@ -83,7 +83,7 @@ SET
     valid_to = EXCLUDED.valid_to,
     value_uf = EXCLUDED.value_uf;
 
-DELETE FROM contribution_caps
+DELETE FROM PAY_CNTRB_CAP
 WHERE (cap_type, valid_from) NOT IN (
     VALUES ('pension_health'::contribution_cap_type, DATE '2018-01-01'),
            ('unemployment'::contribution_cap_type,   DATE '2018-01-01')
@@ -92,7 +92,7 @@ WHERE (cap_type, valid_from) NOT IN (
 -- ============================================================
 -- 5. Payroll concepts
 -- ============================================================
-INSERT INTO payroll_concepts (code, name, kind, is_taxable) VALUES
+INSERT INTO PAY_CONCEPT (code, name, kind, is_taxable) VALUES
     ('SALARY_BASE',                          'Base Salary',                           'income',   TRUE),
     ('LEGAL_GRATUITY',                       'Legal Gratuity',                        'income',   TRUE),
     ('TELEWORK_REFUND',                      'Telework Refund',                       'income',   FALSE),
@@ -119,7 +119,7 @@ SET
     kind       = EXCLUDED.kind,
     is_taxable = EXCLUDED.is_taxable;
 
-DELETE FROM payroll_concepts WHERE code NOT IN (
+DELETE FROM PAY_CONCEPT WHERE code NOT IN (
     'SALARY_BASE', 'LEGAL_GRATUITY', 'TELEWORK_REFUND',
     'HEALTH_INSURANCE_EMPLOYER_CONTRIBUTION', 'VACATION_INCENTIVE',
     'HOLIDAY_BONUS', 'AVAILABILITY_BONUS', 'LEGAL_GRATUITY_ADJUSTMENT',

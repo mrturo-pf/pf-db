@@ -6,12 +6,12 @@
 -- ============================================================
 -- 1. Pension plans (one base plan per institution)
 -- ============================================================
-INSERT INTO pension_plans (institution_id, valid_from, valid_to, additional_rate)
+INSERT INTO PAY_PENS_PLAN (institution_id, valid_from, valid_to, additional_rate)
 SELECT pi.id, DATE '2026-01-01', NULL, 0
-FROM pension_institutions pi
+FROM PAY_PENS_INST pi
 WHERE NOT EXISTS (
     SELECT 1
-    FROM pension_plans pp
+    FROM PAY_PENS_PLAN pp
     WHERE pp.institution_id = pi.id
       AND pp.valid_from     = DATE '2026-01-01'
       AND pp.additional_rate = 0
@@ -20,12 +20,12 @@ WHERE NOT EXISTS (
 -- ============================================================
 -- 2. Health plans (one base plan per institution)
 -- ============================================================
-INSERT INTO health_plans (institution_id, valid_from, valid_to, plan_name, contracted_uf)
+INSERT INTO PAY_HLTH_PLAN (institution_id, valid_from, valid_to, plan_name, contracted_uf)
 SELECT hi.id, DATE '2026-01-01', NULL, 'Base', 0
-FROM health_institutions hi
+FROM PAY_HLTH_INST hi
 WHERE NOT EXISTS (
     SELECT 1
-    FROM health_plans hp
+    FROM PAY_HLTH_PLAN hp
     WHERE hp.institution_id = hi.id
       AND hp.valid_from     = DATE '2026-01-01'
       AND COALESCE(hp.plan_name, '') = 'Base'
@@ -35,7 +35,7 @@ WHERE NOT EXISTS (
 -- ============================================================
 -- 3. Complementary insurance providers
 -- ============================================================
-INSERT INTO complementary_insurance_providers (name) VALUES
+INSERT INTO PAY_COMP_PROV (name) VALUES
     ('SEGUROS CAJA'),
     ('ISANA'),
     ('CONSALUD')
@@ -44,23 +44,23 @@ ON CONFLICT (name) DO NOTHING;
 -- ============================================================
 -- 4. Complementary insurance plans
 -- ============================================================
-INSERT INTO complementary_insurance_plans (
+INSERT INTO PAY_COMP_PLAN (
     provider_id, name, cost_type, cost_value, cost_currency, valid_from, valid_to
 ) VALUES
     (
-        (SELECT id FROM complementary_insurance_providers WHERE name = 'SEGUROS CAJA'),
+        (SELECT id FROM PAY_COMP_PROV WHERE name = 'SEGUROS CAJA'),
         'Plan Clínico Plus - Fixed',
         'fixed_clp'::complementary_insurance_cost_type,
         50000, 'CLP', DATE '2025-01-01', NULL
     ),
     (
-        (SELECT id FROM complementary_insurance_providers WHERE name = 'SEGUROS CAJA'),
+        (SELECT id FROM PAY_COMP_PROV WHERE name = 'SEGUROS CAJA'),
         'Plan Clínico Plus - Variable',
         'variable_percentage'::complementary_insurance_cost_type,
         2.5, 'CLP', DATE '2025-01-01', NULL
     ),
     (
-        (SELECT id FROM complementary_insurance_providers WHERE name = 'ISANA'),
+        (SELECT id FROM PAY_COMP_PROV WHERE name = 'ISANA'),
         'Plan Integral - Fixed',
         'fixed_clp'::complementary_insurance_cost_type,
         35000, 'CLP', DATE '2025-01-01', NULL
@@ -72,7 +72,7 @@ INSERT INTO complementary_insurance_plans (
         2.0, 'CLP', DATE '2025-01-01', NULL
     ),
     (
-        (SELECT id FROM complementary_insurance_providers WHERE name = 'CONSALUD'),
+        (SELECT id FROM PAY_COMP_PROV WHERE name = 'CONSALUD'),
         'Plan Premium - Fixed',
         'fixed_clp'::complementary_insurance_cost_type,
         55000, 'CLP', DATE '2025-01-01', NULL

@@ -6,13 +6,13 @@
 -- ============================================================
 -- 1. Pension plans — one plan per AFP with real commission rates
 -- ============================================================
-INSERT INTO pension_plans (institution_id, valid_from, valid_to, additional_rate)
+INSERT INTO PAY_PENS_PLAN (institution_id, valid_from, valid_to, additional_rate)
 SELECT pi.id, DATE '2024-11-01', NULL, 0.0116
-FROM pension_institutions pi
+FROM PAY_PENS_INST pi
 WHERE pi.code = 'AFP_PLANVITAL'
   AND NOT EXISTS (
       SELECT 1
-      FROM pension_plans pp
+      FROM PAY_PENS_PLAN pp
       WHERE pp.institution_id = pi.id
         AND pp.valid_from     = DATE '2024-11-01'
   );
@@ -20,9 +20,9 @@ WHERE pi.code = 'AFP_PLANVITAL'
 -- ============================================================
 -- 2. Health plans
 -- ============================================================
-INSERT INTO health_plans (institution_id, valid_from, valid_to, plan_name, contracted_uf)
+INSERT INTO PAY_HLTH_PLAN (institution_id, valid_from, valid_to, plan_name, contracted_uf)
 SELECT hi.id, entry.valid_from, entry.valid_to, entry.plan_name, entry.contracted_uf
-FROM health_institutions hi
+FROM PAY_HLTH_INST hi
 CROSS JOIN (VALUES
     (DATE '2024-11-01', NULL::DATE, 'Base',        5.42::NUMERIC(10,4)),
     (DATE '2024-11-01', NULL::DATE, 'GES',         0.91::NUMERIC(10,4)),
@@ -31,7 +31,7 @@ CROSS JOIN (VALUES
 WHERE hi.code = 'ESENCIAL'
   AND NOT EXISTS (
       SELECT 1
-      FROM health_plans hp
+      FROM PAY_HLTH_PLAN hp
       WHERE hp.institution_id = hi.id
         AND hp.valid_from     = entry.valid_from
         AND COALESCE(hp.plan_name, '') = entry.plan_name
@@ -40,7 +40,7 @@ WHERE hi.code = 'ESENCIAL'
 -- ============================================================
 -- 3. Contribution caps
 -- ============================================================
-INSERT INTO contribution_caps (cap_type, valid_from, valid_to, value_uf) VALUES
+INSERT INTO PAY_CNTRB_CAP (cap_type, valid_from, valid_to, value_uf) VALUES
     ('pension_health', DATE '2024-01-01', DATE '2024-12-31', 84.3000),
     ('pension_health', DATE '2025-01-01', DATE '2025-12-31', 87.8000),
     ('pension_health', DATE '2026-01-01', DATE '2026-01-31', 89.9000),
@@ -54,7 +54,7 @@ SET
 -- 4. Employers
 -- ============================================================
 
-INSERT INTO employers (
+INSERT INTO PAY_EMPLOYER (
     name,
     tax_id,
     country_code,
@@ -134,14 +134,14 @@ SET
 -- ============================================================
 -- 5. Complementary insurance providers
 -- ============================================================
-INSERT INTO complementary_insurance_providers (name) VALUES
+INSERT INTO PAY_COMP_PROV (name) VALUES
     ('METLIFE')
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================
 -- 6. Complementary insurance plans
 -- ============================================================
-INSERT INTO complementary_insurance_plans (
+INSERT INTO PAY_COMP_PLAN (
     provider_id,
     name,
     cost_type,
@@ -158,7 +158,7 @@ SELECT
     entry.cost_currency,
     entry.valid_from,
     entry.valid_to
-FROM complementary_insurance_providers p
+FROM PAY_COMP_PROV p
 CROSS JOIN (VALUES
     ('SEGURO DENTAL - PLAN AVANZADO',    'fixed_uf', 0.19::NUMERIC(12,4), 'UF', DATE '2025-02-01', NULL::DATE),
     ('SEGURO DE SALUD - PLAN DESTACADO', 'fixed_uf', 0.25::NUMERIC(12,4), 'UF', DATE '2025-01-01', DATE '2025-01-01'),
@@ -168,7 +168,7 @@ CROSS JOIN (VALUES
 WHERE p.name = 'METLIFE'
   AND NOT EXISTS (
       SELECT 1
-      FROM complementary_insurance_plans cp
+      FROM PAY_COMP_PLAN cp
       WHERE cp.provider_id = p.id
         AND cp.name        = entry.name
         AND cp.valid_from  = entry.valid_from
