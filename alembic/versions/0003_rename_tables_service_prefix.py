@@ -1,3 +1,4 @@
+
 """rename tables with service prefix and 14 char limit
 
 Revision ID: 0003
@@ -44,58 +45,62 @@ def upgrade() -> None:
     op.rename_table('payroll_items', 'PAY_ITEM')
 
     # Materialized view
+    # NOTE: op.rename_table() quotes mixed-case identifiers automatically
+    # (e.g. "PAY_PERIOD"), but raw SQL passed to op.execute() is sent
+    # verbatim with NO quoting. Every mixed-case identifier below MUST be
+    # double-quoted or PostgreSQL folds it to lowercase (pay_period) and
+    # raises UndefinedTableError.
+    # NOTE 2: this view must replicate 0002's exact semantics (INNER JOIN +
+    # the c.is_taxable check for taxable_income_clp) since this migration
+    # only renames tables. An earlier version of this file accidentally
+    # rewrote the logic (LEFT JOIN, dropped is_taxable check), silently
+    # making taxable_income_clp == gross_income_clp. Fixed here.
     op.execute('DROP MATERIALIZED VIEW IF EXISTS mv_payroll_summary')
     op.execute('''
-        CREATE MATERIALIZED VIEW PAY_MV_SUMARY AS
+        CREATE MATERIALIZED VIEW "PAY_MV_SUMARY" AS
         SELECT
-            pp.id AS period_id,
-            pp.employer_id,
-            pp.period_year,
-            pp.period_month,
-            pp.payment_date,
-            SUM(CASE WHEN pc.kind = 'income' THEN pi.amount_clp ELSE 0 END)
+            p.id            AS period_id,
+            p.employer_id,
+            p.period_year,
+            p.period_month,
+            p.payment_date,
+            SUM(CASE WHEN c.kind = 'income' AND c.is_taxable THEN i.amount_clp ELSE 0 END)
                 AS taxable_income_clp,
-            SUM(CASE WHEN pc.kind = 'income' THEN pi.amount_clp ELSE 0 END)
-                AS gross_income_clp,
-            SUM(CASE WHEN pc.kind = 'discount' THEN pi.amount_clp ELSE 0 END)
-                AS total_discounts_clp,
-            SUM(CASE WHEN pc.kind = 'income' THEN pi.amount_clp ELSE 0 END) -
-            SUM(CASE WHEN pc.kind = 'discount' THEN pi.amount_clp ELSE 0 END)
-                AS net_pay_clp
-        FROM PAY_PERIOD pp
-        LEFT JOIN PAY_ITEM pi ON pp.id = pi.period_id
-        LEFT JOIN PAY_CONCEPT pc ON pi.concept_id = pc.id
-        GROUP BY pp.id, pp.employer_id, pp.period_year, pp.period_month, pp.payment_date
+            SUM(CASE WHEN c.kind = 'income'   THEN i.amount_clp ELSE 0 END) AS gross_income_clp,
+            SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS total_discounts_clp,
+            SUM(CASE WHEN c.kind = 'income'   THEN i.amount_clp ELSE 0 END) -
+            SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS net_pay_clp
+        FROM "PAY_PERIOD" p
+        JOIN "PAY_ITEM"    i ON i.period_id = p.id
+        JOIN "PAY_CONCEPT" c ON c.id = i.concept_id
+        GROUP BY p.id
     ''')
-    op.execute('CREATE UNIQUE INDEX idx_pay_mv_sumary_period ON PAY_MV_SUMARY(period_id)')
+    op.execute('CREATE UNIQUE INDEX idx_pay_mv_sumary_period ON "PAY_MV_SUMARY"(period_id)')
 
 
 def downgrade() -> None:
     """Revert table names to original naming convention."""
 
     # Materialized view
-    op.execute('DROP MATERIALIZED VIEW IF EXISTS PAY_MV_SUMARY')
+    op.execute('DROP MATERIALIZED VIEW IF EXISTS "PAY_MV_SUMARY"')
     op.execute('''
         CREATE MATERIALIZED VIEW mv_payroll_summary AS
         SELECT
-            pp.id AS period_id,
-            pp.employer_id,
-            pp.period_year,
-            pp.period_month,
-            pp.payment_date,
-            SUM(CASE WHEN pc.kind = 'income' THEN pi.amount_clp ELSE 0 END)
+            p.id            AS period_id,
+            p.employer_id,
+            p.period_year,
+            p.period_month,
+            p.payment_date,
+            SUM(CASE WHEN c.kind = 'income' AND c.is_taxable THEN i.amount_clp ELSE 0 END)
                 AS taxable_income_clp,
-            SUM(CASE WHEN pc.kind = 'income' THEN pi.amount_clp ELSE 0 END)
-                AS gross_income_clp,
-            SUM(CASE WHEN pc.kind = 'discount' THEN pi.amount_clp ELSE 0 END)
-                AS total_discounts_clp,
-            SUM(CASE WHEN pc.kind = 'income' THEN pi.amount_clp ELSE 0 END) -
-            SUM(CASE WHEN pc.kind = 'discount' THEN pi.amount_clp ELSE 0 END)
-                AS net_pay_clp
-        FROM payroll_periods pp
-        LEFT JOIN payroll_items pi ON pp.id = pi.period_id
-        LEFT JOIN payroll_concepts pc ON pi.concept_id = pc.id
-        GROUP BY pp.id, pp.employer_id, pp.period_year, pp.period_month, pp.payment_date
+            SUM(CASE WHEN c.kind = 'income'   THEN i.amount_clp ELSE 0 END) AS gross_income_clp,
+            SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS total_discounts_clp,
+            SUM(CASE WHEN c.kind = 'income'   THEN i.amount_clp ELSE 0 END) -
+            SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS net_pay_clp
+        FROM payroll_periods p
+        JOIN payroll_items    i ON i.period_id = p.id
+        JOIN payroll_concepts c ON c.id = i.concept_id
+        GROUP BY p.id
     ''')
     op.execute(
         'CREATE UNIQUE INDEX idx_mv_payroll_summary_period '

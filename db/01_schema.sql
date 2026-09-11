@@ -3,6 +3,15 @@
 -- Owned by pf-db; do NOT run this file directly in production.
 -- Use Alembic migrations instead: make migrate
 --
+-- Table names use the service-prefix convention (RAT_ / PAY_), all
+-- UPPERCASE, max 14 chars. Because these identifiers contain uppercase
+-- letters, PostgreSQL requires them to be double-quoted EVERYWHERE they
+-- are referenced (CREATE TABLE, REFERENCES, indexes, views) — otherwise
+-- PostgreSQL folds the unquoted identifier to lowercase and it will not
+-- match the actual (quoted, mixed-case) table. See alembic/versions/
+-- 0003_rename_tables_service_prefix.py for the migration that hit this
+-- exact bug.
+--
 -- Sections:
 --   1. Financial rates     (financial rates domain)
 --   2. Reference data      (payroll domain)
@@ -13,7 +22,7 @@
 -- ============================================================
 -- 1. Financial rates
 -- ============================================================
-CREATE TABLE IF NOT EXISTS currencies (
+CREATE TABLE IF NOT EXISTS "RAT_CURRENCY" (
     code      CHAR(3)     PRIMARY KEY,
     name      VARCHAR(60) NOT NULL,
     is_fiat   BOOLEAN     NOT NULL DEFAULT TRUE,
@@ -21,9 +30,9 @@ CREATE TABLE IF NOT EXISTS currencies (
         CHECK (unit_kind IN ('currency', 'index_unit'))
 );
 
-CREATE TABLE IF NOT EXISTS exchange_rates (
+CREATE TABLE IF NOT EXISTS "RAT_EXCH_RATE" (
     id            BIGSERIAL     PRIMARY KEY,
-    currency_code CHAR(3)       NOT NULL REFERENCES currencies(code),
+    currency_code CHAR(3)       NOT NULL REFERENCES "RAT_CURRENCY"(code),
     rate_date     DATE          NOT NULL,
     value_clp     NUMERIC(18,6) NOT NULL CHECK (value_clp > 0),
     source        VARCHAR(40)   NOT NULL DEFAULT 'manual',
@@ -31,7 +40,7 @@ CREATE TABLE IF NOT EXISTS exchange_rates (
     UNIQUE (currency_code, rate_date)
 );
 
-CREATE TABLE IF NOT EXISTS economic_indices (
+CREATE TABLE IF NOT EXISTS "RAT_ECON_INDEX" (
     id             BIGSERIAL     PRIMARY KEY,
     code           VARCHAR(20)   NOT NULL,
     period_year    SMALLINT      NOT NULL CHECK (period_year BETWEEN 1990 AND 2100),
@@ -45,7 +54,7 @@ CREATE TABLE IF NOT EXISTS economic_indices (
     CONSTRAINT uq_economic_indices UNIQUE (code, period_year, period_month)
 );
 
-CREATE TABLE IF NOT EXISTS income_tax_brackets (
+CREATE TABLE IF NOT EXISTS "RAT_TAX_BRCKT" (
     id              BIGSERIAL     PRIMARY KEY,
     valid_from      DATE          NOT NULL,
     valid_to        DATE,
@@ -77,7 +86,7 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN null;
 END $$;
 
-CREATE TABLE IF NOT EXISTS pension_institutions (
+CREATE TABLE IF NOT EXISTS "PAY_PENS_INST" (
     id             BIGSERIAL    PRIMARY KEY,
     code           VARCHAR(40)  NOT NULL UNIQUE,
     name           VARCHAR(120) NOT NULL,
@@ -85,7 +94,7 @@ CREATE TABLE IF NOT EXISTS pension_institutions (
     is_active      BOOLEAN      NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE IF NOT EXISTS health_institutions (
+CREATE TABLE IF NOT EXISTS "PAY_HLTH_INST" (
     id             BIGSERIAL               PRIMARY KEY,
     code           VARCHAR(40)             NOT NULL UNIQUE,
     name           VARCHAR(120)            NOT NULL,
@@ -94,18 +103,18 @@ CREATE TABLE IF NOT EXISTS health_institutions (
     is_active      BOOLEAN                 NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE IF NOT EXISTS pension_plans (
+CREATE TABLE IF NOT EXISTS "PAY_PENS_PLAN" (
     id              BIGSERIAL    PRIMARY KEY,
-    institution_id  BIGINT       NOT NULL REFERENCES pension_institutions(id),
+    institution_id  BIGINT       NOT NULL REFERENCES "PAY_PENS_INST"(id),
     valid_from      DATE         NOT NULL,
     valid_to        DATE,
     additional_rate NUMERIC(6,4) NOT NULL DEFAULT 0 CHECK (additional_rate >= 0),
     CONSTRAINT chk_pension_plan_dates CHECK (valid_to IS NULL OR valid_to >= valid_from)
 );
 
-CREATE TABLE IF NOT EXISTS health_plans (
+CREATE TABLE IF NOT EXISTS "PAY_HLTH_PLAN" (
     id             BIGSERIAL     PRIMARY KEY,
-    institution_id BIGINT        NOT NULL REFERENCES health_institutions(id),
+    institution_id BIGINT        NOT NULL REFERENCES "PAY_HLTH_INST"(id),
     valid_from     DATE          NOT NULL,
     valid_to       DATE,
     plan_name      VARCHAR(120),
@@ -113,7 +122,7 @@ CREATE TABLE IF NOT EXISTS health_plans (
     CONSTRAINT chk_health_plan_dates CHECK (valid_to IS NULL OR valid_to >= valid_from)
 );
 
-CREATE TABLE IF NOT EXISTS contribution_caps (
+CREATE TABLE IF NOT EXISTS "PAY_CNTRB_CAP" (
     id         BIGSERIAL             PRIMARY KEY,
     cap_type   contribution_cap_type NOT NULL,
     valid_from DATE                  NOT NULL,
@@ -122,15 +131,15 @@ CREATE TABLE IF NOT EXISTS contribution_caps (
     UNIQUE (cap_type, valid_from)
 );
 
-CREATE TABLE IF NOT EXISTS complementary_insurance_providers (
+CREATE TABLE IF NOT EXISTS "PAY_COMP_PROV" (
     id   BIGSERIAL    PRIMARY KEY,
     name VARCHAR(120) NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS complementary_insurance_plans (
+CREATE TABLE IF NOT EXISTS "PAY_COMP_PLAN" (
     id            BIGSERIAL                         PRIMARY KEY,
     provider_id   BIGINT                            NOT NULL
-        REFERENCES complementary_insurance_providers(id),
+        REFERENCES "PAY_COMP_PROV"(id),
     name          VARCHAR(120)                      NOT NULL,
     cost_type     complementary_insurance_cost_type NOT NULL,
     cost_value    NUMERIC(12,4)                     NOT NULL CHECK (cost_value >= 0),
@@ -169,7 +178,7 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN null;
 END $$;
 
-CREATE TABLE IF NOT EXISTS employers (
+CREATE TABLE IF NOT EXISTS "PAY_EMPLOYER" (
     id                                       BIGSERIAL                  PRIMARY KEY,
     name                                     VARCHAR(120)               NOT NULL UNIQUE,
     tax_id                                   VARCHAR(32),
@@ -197,9 +206,9 @@ CREATE TABLE IF NOT EXISTS employers (
         DEFAULT 'previous_business_day'
 );
 
-CREATE TABLE IF NOT EXISTS payroll_periods (
+CREATE TABLE IF NOT EXISTS "PAY_PERIOD" (
     id                       BIGSERIAL                NOT NULL PRIMARY KEY,
-    employer_id              BIGINT                   NOT NULL REFERENCES employers(id),
+    employer_id              BIGINT                   NOT NULL REFERENCES "PAY_EMPLOYER"(id),
     period_year              SMALLINT                 NOT NULL,
     period_month             SMALLINT                 NOT NULL,
     payment_date             DATE                     NOT NULL,
@@ -209,25 +218,25 @@ CREATE TABLE IF NOT EXISTS payroll_periods (
     declared_net_pay_clp     NUMERIC(18,2),
     expected_net_pay_clp     NUMERIC(18,2),
     net_pay_difference_clp   NUMERIC(18,2),
-    pension_plan_id          BIGINT                   REFERENCES pension_plans(id),
+    pension_plan_id          BIGINT                   REFERENCES "PAY_PENS_PLAN"(id),
     UNIQUE (employer_id, period_year, period_month)
 );
 
-CREATE TABLE IF NOT EXISTS payroll_period_health_plans (
-    period_id      BIGINT NOT NULL REFERENCES payroll_periods(id) ON DELETE CASCADE,
-    health_plan_id BIGINT NOT NULL REFERENCES health_plans(id),
+CREATE TABLE IF NOT EXISTS "PAY_PRD_HLTH" (
+    period_id      BIGINT NOT NULL REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
+    health_plan_id BIGINT NOT NULL REFERENCES "PAY_HLTH_PLAN"(id),
     PRIMARY KEY (period_id, health_plan_id)
 );
 
-CREATE TABLE IF NOT EXISTS payroll_complementary_insurance (
+CREATE TABLE IF NOT EXISTS "PAY_PRD_COMP" (
     period_id                       BIGINT NOT NULL
-        REFERENCES payroll_periods(id) ON DELETE CASCADE,
+        REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
     complementary_insurance_plan_id BIGINT NOT NULL
-        REFERENCES complementary_insurance_plans(id),
+        REFERENCES "PAY_COMP_PLAN"(id),
     PRIMARY KEY (period_id, complementary_insurance_plan_id)
 );
 
-CREATE TABLE IF NOT EXISTS payroll_concepts (
+CREATE TABLE IF NOT EXISTS "PAY_CONCEPT" (
     id         BIGSERIAL    PRIMARY KEY,
     code       VARCHAR(40)  NOT NULL UNIQUE,
     name       VARCHAR(120) NOT NULL,
@@ -235,22 +244,22 @@ CREATE TABLE IF NOT EXISTS payroll_concepts (
     is_taxable BOOLEAN      NOT NULL DEFAULT FALSE
 );
 
-CREATE TABLE IF NOT EXISTS payroll_items (
+CREATE TABLE IF NOT EXISTS "PAY_ITEM" (
     id         BIGSERIAL     PRIMARY KEY,
-    period_id  BIGINT        NOT NULL REFERENCES payroll_periods(id) ON DELETE CASCADE,
-    concept_id BIGINT        NOT NULL REFERENCES payroll_concepts(id),
+    period_id  BIGINT        NOT NULL REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
+    concept_id BIGINT        NOT NULL REFERENCES "PAY_CONCEPT"(id),
     amount_clp NUMERIC(18,2) NOT NULL,
     notes      TEXT,
     created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_payroll_items_period_id  ON payroll_items(period_id);
-CREATE INDEX IF NOT EXISTS idx_payroll_items_concept_id ON payroll_items(concept_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_items_period_id  ON "PAY_ITEM"(period_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_items_concept_id ON "PAY_ITEM"(concept_id);
 
 -- ============================================================
 -- 4. Analytics
 -- ============================================================
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_payroll_summary AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS "PAY_MV_SUMARY" AS
 SELECT
     p.id           AS period_id,
     p.employer_id,
@@ -263,7 +272,9 @@ SELECT
     SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS total_discounts_clp,
     SUM(CASE WHEN c.kind = 'income'   THEN i.amount_clp ELSE 0 END) -
     SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS net_pay_clp
-FROM payroll_periods  p
-JOIN payroll_items    i ON i.period_id  = p.id
-JOIN payroll_concepts c ON c.id = i.concept_id
+FROM "PAY_PERIOD"  p
+JOIN "PAY_ITEM"    i ON i.period_id  = p.id
+JOIN "PAY_CONCEPT" c ON c.id = i.concept_id
 GROUP BY p.id;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pay_mv_sumary_period ON "PAY_MV_SUMARY"(period_id);

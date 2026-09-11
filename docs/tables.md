@@ -14,7 +14,7 @@ Ownership means: only the microservices that own a domain **write** to those tab
 
 | Tables | Domain | Owner | Access pattern |
 |---|---|---|---|
-| `currencies`, `exchange_rates`, `economic_indices`, `income_tax_brackets` | Financial rates | [pf-rates](../pf-rates) | pf-payroll reads via HTTP API (never direct SQL) |
+| `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT` | Financial rates | [pf-rates](../pf-rates) | pf-payroll reads via HTTP API (never direct SQL) |
 | All others (13 tables + 1 view) | Payroll | [pf-payroll](../pf-payroll) | Exclusive write access |
 
 ## Connection string
@@ -31,7 +31,7 @@ Each consuming microservice sets its own env-var prefix for the connection strin
 
 ## Financial rates tables (4 tables)
 
-### currencies
+### RAT_CURRENCY
 
 Supported currencies for exchange rates.
 
@@ -39,7 +39,7 @@ Supported currencies for exchange rates.
 
 **Schema:**
 ```sql
-CREATE TABLE currencies (
+CREATE TABLE "RAT_CURRENCY" (
     code VARCHAR(3) PRIMARY KEY,
     name VARCHAR(100) NOT NULL
 );
@@ -55,7 +55,7 @@ CREATE TABLE currencies (
 
 ---
 
-### exchange_rates
+### RAT_EXCH_RATE
 
 Historical exchange rates (CLP value for foreign currencies).
 
@@ -63,15 +63,15 @@ Historical exchange rates (CLP value for foreign currencies).
 
 **Schema:**
 ```sql
-CREATE TABLE exchange_rates (
+CREATE TABLE "RAT_EXCH_RATE" (
     id SERIAL PRIMARY KEY,
-    currency_code VARCHAR(3) REFERENCES currencies(code),
+    currency_code VARCHAR(3) REFERENCES "RAT_CURRENCY"(code),
     rate_date DATE NOT NULL,
     value_clp NUMERIC(12, 4) NOT NULL,
     UNIQUE (currency_code, rate_date)
 );
 
-CREATE INDEX idx_exchange_rates_currency_date ON exchange_rates(currency_code, rate_date);
+CREATE INDEX idx_exchange_rates_currency_date ON "RAT_EXCH_RATE"(currency_code, rate_date);
 ```
 
 **Sample data:**
@@ -84,7 +84,7 @@ CREATE INDEX idx_exchange_rates_currency_date ON exchange_rates(currency_code, r
 
 ---
 
-### economic_indices
+### RAT_ECON_INDEX
 
 Economic indices (UF, UTM, IPC) with monthly values.
 
@@ -92,7 +92,7 @@ Economic indices (UF, UTM, IPC) with monthly values.
 
 **Schema:**
 ```sql
-CREATE TABLE economic_indices (
+CREATE TABLE "RAT_ECON_INDEX" (
     id SERIAL PRIMARY KEY,
     code VARCHAR(10) NOT NULL,
     year INTEGER NOT NULL,
@@ -101,7 +101,7 @@ CREATE TABLE economic_indices (
     UNIQUE (code, year, month)
 );
 
-CREATE INDEX idx_economic_indices_code_year_month ON economic_indices(code, year, month);
+CREATE INDEX idx_economic_indices_code_year_month ON "RAT_ECON_INDEX"(code, year, month);
 ```
 
 **Sample data:**
@@ -117,7 +117,7 @@ CREATE INDEX idx_economic_indices_code_year_month ON economic_indices(code, year
 
 ---
 
-### income_tax_brackets
+### RAT_TAX_BRCKT
 
 Income tax brackets for Chilean payroll tax calculation.
 
@@ -125,7 +125,7 @@ Income tax brackets for Chilean payroll tax calculation.
 
 **Schema:**
 ```sql
-CREATE TABLE income_tax_brackets (
+CREATE TABLE "RAT_TAX_BRCKT" (
     id SERIAL PRIMARY KEY,
     year INTEGER NOT NULL,
     lower_bound_utm NUMERIC(6, 2) NOT NULL,
@@ -135,7 +135,7 @@ CREATE TABLE income_tax_brackets (
     UNIQUE (year, lower_bound_utm)
 );
 
-CREATE INDEX idx_income_tax_brackets_year ON income_tax_brackets(year);
+CREATE INDEX idx_income_tax_brackets_year ON "RAT_TAX_BRCKT"(year);
 ```
 
 **Sample data (2024):**
@@ -152,7 +152,7 @@ CREATE INDEX idx_income_tax_brackets_year ON income_tax_brackets(year);
 
 ## Payroll tables (13 tables + 1 view)
 
-### pension_institutions
+### PAY_PENS_INST
 
 AFP (pension fund administrator) institutions.
 
@@ -160,7 +160,7 @@ AFP (pension fund administrator) institutions.
 
 **Schema:**
 ```sql
-CREATE TABLE pension_institutions (
+CREATE TABLE "PAY_PENS_INST" (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE
 );
@@ -181,7 +181,7 @@ CREATE TABLE pension_institutions (
 
 ---
 
-### health_institutions
+### PAY_HLTH_INST
 
 Health institutions (Fonasa + Isapres).
 
@@ -189,7 +189,7 @@ Health institutions (Fonasa + Isapres).
 
 **Schema:**
 ```sql
-CREATE TABLE health_institutions (
+CREATE TABLE "PAY_HLTH_INST" (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE
 );
@@ -210,7 +210,7 @@ CREATE TABLE health_institutions (
 
 ---
 
-### pension_plans
+### PAY_PENS_PLAN
 
 Pension plan types.
 
@@ -218,7 +218,7 @@ Pension plan types.
 
 **Schema:**
 ```sql
-CREATE TABLE pension_plans (
+CREATE TABLE "PAY_PENS_PLAN" (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE
 );
@@ -234,7 +234,7 @@ CREATE TABLE pension_plans (
 
 ---
 
-### health_plans
+### PAY_HLTH_PLAN
 
 Health plan types.
 
@@ -242,7 +242,7 @@ Health plan types.
 
 **Schema:**
 ```sql
-CREATE TABLE health_plans (
+CREATE TABLE "PAY_HLTH_PLAN" (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE
 );
@@ -258,7 +258,7 @@ CREATE TABLE health_plans (
 
 ---
 
-### contribution_caps
+### PAY_CNTRB_CAP
 
 Monthly contribution caps (UF-based).
 
@@ -266,7 +266,7 @@ Monthly contribution caps (UF-based).
 
 **Schema:**
 ```sql
-CREATE TABLE contribution_caps (
+CREATE TABLE "PAY_CNTRB_CAP" (
     id SERIAL PRIMARY KEY,
     year INTEGER NOT NULL,
     month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
@@ -275,7 +275,7 @@ CREATE TABLE contribution_caps (
     UNIQUE (year, month)
 );
 
-CREATE INDEX idx_contribution_caps_year_month ON contribution_caps(year, month);
+CREATE INDEX idx_contribution_caps_year_month ON "PAY_CNTRB_CAP"(year, month);
 ```
 
 **Sample data:**
@@ -289,7 +289,7 @@ CREATE INDEX idx_contribution_caps_year_month ON contribution_caps(year, month);
 
 ---
 
-### complementary_insurance_providers
+### PAY_COMP_PROV
 
 Complementary insurance providers.
 
@@ -297,7 +297,7 @@ Complementary insurance providers.
 
 **Schema:**
 ```sql
-CREATE TABLE complementary_insurance_providers (
+CREATE TABLE "PAY_COMP_PROV" (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE
 );
@@ -313,7 +313,7 @@ CREATE TABLE complementary_insurance_providers (
 
 ---
 
-### complementary_insurance_plans
+### PAY_COMP_PLAN
 
 Complementary insurance plan types.
 
@@ -321,7 +321,7 @@ Complementary insurance plan types.
 
 **Schema:**
 ```sql
-CREATE TABLE complementary_insurance_plans (
+CREATE TABLE "PAY_COMP_PLAN" (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE
 );
@@ -337,7 +337,7 @@ CREATE TABLE complementary_insurance_plans (
 
 ---
 
-### employers
+### PAY_EMPLOYER
 
 Employer entities.
 
@@ -345,7 +345,7 @@ Employer entities.
 
 **Schema:**
 ```sql
-CREATE TABLE employers (
+CREATE TABLE "PAY_EMPLOYER" (
     id SERIAL PRIMARY KEY,
     rut VARCHAR(12) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL
@@ -359,7 +359,7 @@ CREATE TABLE employers (
 
 ---
 
-### payroll_periods
+### PAY_PERIOD
 
 Payroll periods (month/year + payment date).
 
@@ -367,21 +367,21 @@ Payroll periods (month/year + payment date).
 
 **Schema:**
 ```sql
-CREATE TABLE payroll_periods (
+CREATE TABLE "PAY_PERIOD" (
     id SERIAL PRIMARY KEY,
-    employer_id INTEGER REFERENCES employers(id),
+    employer_id INTEGER REFERENCES "PAY_EMPLOYER"(id),
     year INTEGER NOT NULL,
     month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
     payment_date DATE NOT NULL,
     UNIQUE (employer_id, year, month)
 );
 
-CREATE INDEX idx_payroll_periods_employer ON payroll_periods(employer_id);
+CREATE INDEX idx_payroll_periods_employer ON "PAY_PERIOD"(employer_id);
 ```
 
 ---
 
-### payroll_period_health_plans
+### PAY_PRD_HLTH
 
 Health plan selections per payroll period.
 
@@ -389,10 +389,10 @@ Health plan selections per payroll period.
 
 **Schema:**
 ```sql
-CREATE TABLE payroll_period_health_plans (
+CREATE TABLE "PAY_PRD_HLTH" (
     id SERIAL PRIMARY KEY,
-    payroll_period_id INTEGER REFERENCES payroll_periods(id),
-    health_institution_id INTEGER REFERENCES health_institutions(id),
+    payroll_period_id INTEGER REFERENCES "PAY_PERIOD"(id),
+    health_institution_id INTEGER REFERENCES "PAY_HLTH_INST"(id),
     plan_value_clp NUMERIC(12, 2) NOT NULL,
     UNIQUE (payroll_period_id, health_institution_id)
 );
@@ -400,7 +400,7 @@ CREATE TABLE payroll_period_health_plans (
 
 ---
 
-### payroll_complementary_insurance
+### PAY_PRD_COMP
 
 Complementary insurance per payroll period.
 
@@ -408,18 +408,18 @@ Complementary insurance per payroll period.
 
 **Schema:**
 ```sql
-CREATE TABLE payroll_complementary_insurance (
+CREATE TABLE "PAY_PRD_COMP" (
     id SERIAL PRIMARY KEY,
-    payroll_period_id INTEGER REFERENCES payroll_periods(id),
-    provider_id INTEGER REFERENCES complementary_insurance_providers(id),
-    plan_id INTEGER REFERENCES complementary_insurance_plans(id),
+    payroll_period_id INTEGER REFERENCES "PAY_PERIOD"(id),
+    provider_id INTEGER REFERENCES "PAY_COMP_PROV"(id),
+    plan_id INTEGER REFERENCES "PAY_COMP_PLAN"(id),
     premium_clp NUMERIC(12, 2) NOT NULL
 );
 ```
 
 ---
 
-### payroll_concepts
+### PAY_CONCEPT
 
 Custom payroll concepts (bonuses, deductions).
 
@@ -427,7 +427,7 @@ Custom payroll concepts (bonuses, deductions).
 
 **Schema:**
 ```sql
-CREATE TABLE payroll_concepts (
+CREATE TABLE "PAY_CONCEPT" (
     id SERIAL PRIMARY KEY,
     code VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(100) NOT NULL,
@@ -447,7 +447,7 @@ CREATE TABLE payroll_concepts (
 
 ---
 
-### payroll_items
+### PAY_ITEM
 
 Individual payroll line items.
 
@@ -455,21 +455,21 @@ Individual payroll line items.
 
 **Schema:**
 ```sql
-CREATE TABLE payroll_items (
+CREATE TABLE "PAY_ITEM" (
     id SERIAL PRIMARY KEY,
-    payroll_period_id INTEGER REFERENCES payroll_periods(id),
+    payroll_period_id INTEGER REFERENCES "PAY_PERIOD"(id),
     employee_rut VARCHAR(12) NOT NULL,
-    concept_id INTEGER REFERENCES payroll_concepts(id),
+    concept_id INTEGER REFERENCES "PAY_CONCEPT"(id),
     amount_clp NUMERIC(12, 2) NOT NULL
 );
 
-CREATE INDEX idx_payroll_items_period ON payroll_items(payroll_period_id);
-CREATE INDEX idx_payroll_items_employee ON payroll_items(employee_rut);
+CREATE INDEX idx_payroll_items_period ON "PAY_ITEM"(payroll_period_id);
+CREATE INDEX idx_payroll_items_employee ON "PAY_ITEM"(employee_rut);
 ```
 
 ---
 
-### mv_payroll_summary (materialized view)
+### PAY_MV_SUMARY (materialized view)
 
 Aggregated payroll summaries for analytics.
 
@@ -477,7 +477,7 @@ Aggregated payroll summaries for analytics.
 
 **Schema:**
 ```sql
-CREATE MATERIALIZED VIEW mv_payroll_summary AS
+CREATE MATERIALIZED VIEW "PAY_MV_SUMARY" AS
 SELECT 
     pp.id AS payroll_period_id,
     pp.employer_id,
@@ -486,17 +486,17 @@ SELECT
     COUNT(DISTINCT pi.employee_rut) AS employee_count,
     SUM(CASE WHEN pc.category = 'income' THEN pi.amount_clp ELSE 0 END) AS total_income,
     SUM(CASE WHEN pc.category = 'deduction' THEN pi.amount_clp ELSE 0 END) AS total_deductions
-FROM payroll_periods pp
-LEFT JOIN payroll_items pi ON pp.id = pi.payroll_period_id
-LEFT JOIN payroll_concepts pc ON pi.concept_id = pc.id
+FROM "PAY_PERIOD" pp
+LEFT JOIN "PAY_ITEM" pi ON pp.id = pi.payroll_period_id
+LEFT JOIN "PAY_CONCEPT" pc ON pi.concept_id = pc.id
 GROUP BY pp.id, pp.employer_id, pp.year, pp.month;
 
-CREATE UNIQUE INDEX idx_mv_payroll_summary_period ON mv_payroll_summary(payroll_period_id);
+CREATE UNIQUE INDEX idx_mv_payroll_summary_period ON "PAY_MV_SUMARY"(payroll_period_id);
 ```
 
 **Refresh:**
 ```sql
-REFRESH MATERIALIZED VIEW CONCURRENTLY mv_payroll_summary;
+REFRESH MATERIALIZED VIEW CONCURRENTLY "PAY_MV_SUMARY";
 ```
 
 ---
@@ -504,23 +504,23 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_payroll_summary;
 ## Entity Relationship Diagram
 
 ```
-[currencies] 1---N [exchange_rates]
+[RAT_CURRENCY] 1---N [RAT_EXCH_RATE]
 
-[employers] 1---N [payroll_periods]
+[PAY_EMPLOYER] 1---N [PAY_PERIOD]
 
-[payroll_periods] 1---N [payroll_period_health_plans]
-                  1---N [payroll_complementary_insurance]
-                  1---N [payroll_items]
+[PAY_PERIOD] 1---N [PAY_PRD_HLTH]
+                  1---N [PAY_PRD_COMP]
+                  1---N [PAY_ITEM]
 
-[payroll_items] N---1 [payroll_concepts]
+[PAY_ITEM] N---1 [PAY_CONCEPT]
 
-[payroll_period_health_plans] N---1 [health_institutions]
+[PAY_PRD_HLTH] N---1 [PAY_HLTH_INST]
 
-[payroll_complementary_insurance] N---1 [complementary_insurance_providers]
-                                   N---1 [complementary_insurance_plans]
+[PAY_PRD_COMP] N---1 [PAY_COMP_PROV]
+                                   N---1 [PAY_COMP_PLAN]
 
-[pension_institutions] (referenced by application, not FK)
-[health_institutions] (referenced by payroll_period_health_plans)
+[PAY_PENS_INST] (referenced by application, not FK)
+[PAY_HLTH_INST] (referenced by PAY_PRD_HLTH)
 ```
 
 ## Data flow
@@ -532,7 +532,7 @@ External Sources (Mindicador, BCCH, SII)
 pf-rates (/refresh endpoints)
   |
   v
-PostgreSQL (currencies, exchange_rates, economic_indices, income_tax_brackets)
+PostgreSQL (RAT_CURRENCY, RAT_EXCH_RATE, RAT_ECON_INDEX, RAT_TAX_BRCKT)
   |
   v
 pf-rates (GET endpoints)
