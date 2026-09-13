@@ -92,10 +92,10 @@ Run queries:
 \dt
 
 -- Count rows in currencies
-SELECT COUNT(*) FROM currencies;
+SELECT COUNT(*) FROM "RAT_CURRENCY";
 
 -- Show sample exchange rates
-SELECT * FROM exchange_rates ORDER BY rate_date DESC LIMIT 5;
+SELECT * FROM "RAT_EXCH_RATE" ORDER BY rate_date DESC LIMIT 5;
 ```
 
 Type `\q` to exit.

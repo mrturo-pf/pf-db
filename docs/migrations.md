@@ -21,7 +21,8 @@ alembic/
 ├── env.py                     # async runner; reads DATABASE_URL from .env
 └── versions/
     ├── 0001_rates_schema.py   # currencies, exchange_rates, economic_indices, income_tax_brackets
-    └── 0002_payroll_schema.py # pension/health/contribution tables + employers + payroll core + mv
+    ├── 0002_payroll_schema.py # pension/health/contribution tables + employers + payroll core + mv
+    └── 0003_rename_tables_service_prefix.py # renames all tables above to RAT_*/PAY_* prefixes
 ```
 
 ### File naming convention
@@ -317,7 +318,7 @@ Example:
 
 ```sql
 -- Idempotent insert
-INSERT INTO currencies (code, name) 
+INSERT INTO "RAT_CURRENCY" (code, name) 
 VALUES ('USD', 'United States Dollar')
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 ```

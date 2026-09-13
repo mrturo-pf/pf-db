@@ -270,7 +270,7 @@ SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 async def example():
     async with SessionLocal() as session:
-        result = await session.execute("SELECT COUNT(*) FROM currencies")
+        result = await session.execute('SELECT COUNT(*) FROM "RAT_CURRENCY"')
         print(result.scalar())
 ```
 
@@ -325,10 +325,10 @@ Example:
 
 ```sql
 -- Before (not idempotent)
-INSERT INTO currencies (code, name) VALUES ('USD', 'United States Dollar');
+INSERT INTO "RAT_CURRENCY" (code, name) VALUES ('USD', 'United States Dollar');
 
 -- After (idempotent)
-INSERT INTO currencies (code, name) VALUES ('USD', 'United States Dollar')
+INSERT INTO "RAT_CURRENCY" (code, name) VALUES ('USD', 'United States Dollar')
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 ```
 

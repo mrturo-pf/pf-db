@@ -12,7 +12,8 @@ pf-db/
 │   ├── env.py                     # async runner; reads DATABASE_URL from .env
 │   └── versions/
 │       ├── 0001_rates_schema.py   # currencies, exchange_rates, economic_indices, income_tax_brackets
-│       └── 0002_payroll_schema.py # pension/health/contribution tables + employers + payroll core + mv
+│       ├── 0002_payroll_schema.py # pension/health/contribution tables + employers + payroll core + mv
+│       └── 0003_rename_tables_service_prefix.py # renames all tables above to RAT_*/PAY_* prefixes
 ├── db/
 │   ├── 01_schema.sql              # idempotent DDL reference (do NOT run in production)
 │   ├── 02_seed_base.sql           # base seed: currencies, institutions, caps, brackets, concepts
@@ -26,10 +27,14 @@ pf-db/
 
 ## Table ownership
 
+All tables follow the `RAT_*` (pf-rates) / `PAY_*` (pf-payroll) naming convention
+introduced in migration `0003` (UPPERCASE, max 14 chars, service prefix). See
+[`docs/tables.md`](docs/tables.md) for the full list with schemas and sample data.
+
 | Tables | Domain |
 |---|---|
-| `currencies`, `exchange_rates`, `economic_indices`, `income_tax_brackets` | financial rates |
-| All others (17 tables total) + `mv_payroll_summary` | payroll |
+| `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT` | financial rates |
+| All others (17 tables total) + `PAY_MV_SUMARY` | payroll |
 
 Ownership means: only the microservices that own a domain write to those tables.
 Any microservice may read any table.

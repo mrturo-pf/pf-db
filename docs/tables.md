@@ -70,8 +70,6 @@ CREATE TABLE "RAT_EXCH_RATE" (
     value_clp NUMERIC(12, 4) NOT NULL,
     UNIQUE (currency_code, rate_date)
 );
-
-CREATE INDEX idx_exchange_rates_currency_date ON "RAT_EXCH_RATE"(currency_code, rate_date);
 ```
 
 **Sample data:**
@@ -100,8 +98,6 @@ CREATE TABLE "RAT_ECON_INDEX" (
     value NUMERIC(12, 2) NOT NULL CHECK (value > 0),
     UNIQUE (code, year, month)
 );
-
-CREATE INDEX idx_economic_indices_code_year_month ON "RAT_ECON_INDEX"(code, year, month);
 ```
 
 **Sample data:**
@@ -134,8 +130,6 @@ CREATE TABLE "RAT_TAX_BRCKT" (
     rebate_utm NUMERIC(6, 2) NOT NULL,
     UNIQUE (year, lower_bound_utm)
 );
-
-CREATE INDEX idx_income_tax_brackets_year ON "RAT_TAX_BRCKT"(year);
 ```
 
 **Sample data (2024):**
@@ -274,8 +268,6 @@ CREATE TABLE "PAY_CNTRB_CAP" (
     health_cap_uf NUMERIC(6, 2) NOT NULL,
     UNIQUE (year, month)
 );
-
-CREATE INDEX idx_contribution_caps_year_month ON "PAY_CNTRB_CAP"(year, month);
 ```
 
 **Sample data:**
