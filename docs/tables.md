@@ -1,11 +1,11 @@
 # Tables Reference
 
-Complete documentation of the 17 tables managed by pf-db, including ownership, relationships, and connection details.
+Complete documentation of the 18 tables managed by pf-db, including ownership, relationships, and connection details.
 
 ## Overview
 
-pf-db manages **17 tables** across two domains:
-- **Financial rates:** 4 tables (owned by pf-rates)
+pf-db manages **18 tables** across two domains:
+- **Financial rates:** 5 tables (owned by pf-rates)
 - **Payroll:** 13 tables + 1 materialized view (owned by pf-payroll)
 
 ## Table ownership
@@ -14,7 +14,7 @@ Ownership means: only the microservices that own a domain **write** to those tab
 
 | Tables | Domain | Owner | Access pattern |
 |---|---|---|---|
-| `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT` | Financial rates | [pf-rates](../pf-rates) | pf-payroll reads via HTTP API (never direct SQL) |
+| `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT`, `RAT_EXPORT_JOB` | Financial rates | [pf-rates](../pf-rates) | pf-payroll reads via HTTP API (never direct SQL) |
 | All others (13 tables + 1 view) | Payroll | [pf-payroll](../pf-payroll) | Exclusive write access |
 
 ## Connection string
@@ -141,6 +141,39 @@ CREATE TABLE "RAT_TAX_BRCKT" (
 | 4 | 2024 | 50.00 | 70.00 | 0.1350 | 4.49 |
 
 **Seed:** `db/02_seed_base.sql`
+
+---
+
+### RAT_EXPORT_JOB
+
+Async CSV export job tracking (`POST /exchange-rates/export {"async": true}`).
+
+**Owner:** pf-rates
+
+**Schema:**
+```sql
+CREATE TABLE "RAT_EXPORT_JOB" (
+    id             BIGSERIAL     PRIMARY KEY,
+    status         VARCHAR(20)   NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'running', 'succeeded', 'failed')),
+    lookback_days  INTEGER       NOT NULL CHECK (lookback_days >= 0),
+    forward_days   INTEGER       NOT NULL CHECK (forward_days >= 0),
+    rows_written   INTEGER,
+    file_id        VARCHAR(200),
+    error_message  TEXT,
+    created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+```
+
+**Sample data:**
+| id | status | lookback_days | forward_days | rows_written | file_id |
+|---|---|---|---|---|---|
+| 1 | succeeded | 6100 | 30 | 24521 | 1a2b3c... |
+
+**Note:** row is created by the trigger request and updated in place by the
+background task as it progresses (`pending` -> `running` -> `succeeded`/`failed`).
+No seed data -- purely operational/runtime state.
 
 ---
 

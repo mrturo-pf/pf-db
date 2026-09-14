@@ -67,6 +67,20 @@ CREATE TABLE IF NOT EXISTS "RAT_TAX_BRCKT" (
     UNIQUE (valid_from, lower_bound_utm)
 );
 
+CREATE TABLE IF NOT EXISTS "RAT_EXPORT_JOB" (
+    id             BIGSERIAL     PRIMARY KEY,
+    status         VARCHAR(20)   NOT NULL DEFAULT 'pending'
+        CONSTRAINT chk_rat_export_job_status
+        CHECK (status IN ('pending', 'running', 'succeeded', 'failed')),
+    lookback_days  INTEGER       NOT NULL CHECK (lookback_days >= 0),
+    forward_days   INTEGER       NOT NULL CHECK (forward_days >= 0),
+    rows_written   INTEGER,
+    file_id        VARCHAR(200),
+    error_message  TEXT,
+    created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
 -- ============================================================
 -- 2. Reference data — pension & health institutions
 -- ============================================================
