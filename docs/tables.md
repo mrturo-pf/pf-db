@@ -146,34 +146,47 @@ CREATE TABLE "RAT_TAX_BRCKT" (
 
 ### RAT_EXPORT_JOB
 
-Async CSV export job tracking (`POST /exchange-rates/export {"async": true}`).
+Async CSV export job tracking (`POST /exchange-rates/export {"async": true}`),
+including cooperative cancellation
+(`POST /exchange-rates/export/jobs/{id}/stop` and the bulk
+`POST /exchange-rates/export/jobs/stop`).
 
 **Owner:** pf-rates
 
 **Schema:**
 ```sql
 CREATE TABLE "RAT_EXPORT_JOB" (
-    id             BIGSERIAL     PRIMARY KEY,
-    status         VARCHAR(20)   NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'running', 'succeeded', 'failed')),
-    lookback_days  INTEGER       NOT NULL CHECK (lookback_days >= 0),
-    forward_days   INTEGER       NOT NULL CHECK (forward_days >= 0),
-    rows_written   INTEGER,
-    file_id        VARCHAR(200),
-    error_message  TEXT,
-    created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    updated_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    id                   BIGSERIAL     PRIMARY KEY,
+    status               VARCHAR(20)   NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'running', 'succeeded', 'failed', 'cancelled')),
+    lookback_days        INTEGER       NOT NULL CHECK (lookback_days >= 0),
+    forward_days         INTEGER       NOT NULL CHECK (forward_days >= 0),
+    rows_written         INTEGER,
+    file_id              VARCHAR(200),
+    error_message        TEXT,
+    cancel_requested_at  TIMESTAMPTZ,
+    created_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX idx_rat_export_job_status_created ON "RAT_EXPORT_JOB" (status, created_at);
 ```
+
+`cancel_requested_at` (added in migration `0005`) is set once a stop is
+requested and polled cooperatively by the running export loop -- pf-rates
+has no message queue in front of it (Cloud Run + BackgroundTasks only, by
+deliberate cost choice), so a job stops itself at its next checkpoint
+rather than being force-killed instantly from another instance.
 
 **Sample data:**
 | id | status | lookback_days | forward_days | rows_written | file_id |
 |---|---|---|---|---|---|
 | 1 | succeeded | 6100 | 30 | 24521 | 1a2b3c... |
 
-**Note:** row is created by the trigger request and updated in place by the
-background task as it progresses (`pending` -> `running` -> `succeeded`/`failed`).
-No seed data -- purely operational/runtime state.
+****Note:** row is created by the trigger request and updated in place by the
+background task as it progresses (`pending` -> `running` ->
+`succeeded`/`failed`/`cancelled`). No seed data -- purely operational/runtime
+state.
 
 ---
 
