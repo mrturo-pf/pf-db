@@ -13,7 +13,8 @@ pf-db/
 │   └── versions/
 │       ├── 0001_rates_schema.py   # currencies, exchange_rates, economic_indices, income_tax_brackets
 │       ├── 0002_payroll_schema.py # pension/health/contribution tables + employers + payroll core + mv
-│       └── 0003_rename_tables_service_prefix.py # renames all tables above to RAT_*/PAY_* prefixes
+│       ├── 0003_rename_tables_service_prefix.py # renames all tables above to RAT_*/PAY_* prefixes
+│       └── 0004_export_jobs_table.py # RAT_EXPORT_JOB: async CSV export job tracking
 ├── db/
 │   ├── 01_schema.sql              # idempotent DDL reference (do NOT run in production)
 │   ├── 02_seed_base.sql           # base seed: currencies, institutions, caps, brackets, concepts
@@ -33,7 +34,7 @@ introduced in migration `0003` (UPPERCASE, max 14 chars, service prefix). See
 
 | Tables | Domain |
 |---|---|
-| `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT` | financial rates |
+| `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT`, `RAT_EXPORT_JOB` | financial rates |
 | All others (17 tables total) + `PAY_MV_SUMARY` | payroll |
 
 Ownership means: only the microservices that own a domain write to those tables.
@@ -69,6 +70,10 @@ Each keeps its own SQLAlchemy ORM models and repositories — no ORM code lives 
 - Always provide `downgrade()` — never leave it as `pass`
 - Monetary/rate columns: `NUMERIC` only, never `FLOAT`
 - Migrations before traffic: Cloud Run Job applies `alembic upgrade head` before services receive requests
+- **Cloud cost is always the priority in cloud decisions**: cheapest viable option first.
+  This is why migrations run as an on-demand Cloud Run **Job** (pay only while it runs)
+  instead of an always-on service. Any future infra addition here must justify its cost
+  vs. the on-demand alternative — see [`docs/ci.md`](docs/ci.md#invariants-never-violate).
 
 ## Development commands
 

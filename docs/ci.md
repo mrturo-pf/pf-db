@@ -335,25 +335,33 @@ jobs:
 
 ## Invariants (never violate)
 
-### 1. Migrations before traffic
+### 1. Cost first, always
+
+Any cloud infra decision here must default to the cheapest viable option. This is why
+migrations run through an on-demand **Cloud Run Job** (`pf-db-migrate`) instead of an
+always-on service: you pay only for the seconds it actually runs, not idle time.
+
+**Why:** No reason to keep compute running 24/7 for a task that fires once per deploy.
+
+### 2. Migrations before traffic
 
 The `pf-db` Cloud Run Job must complete before pf-rates or pf-payroll receive traffic.
 
 **Why:** Ensures schema is up-to-date before application code runs.
 
-### 2. Manual approval required
+### 3. Manual approval required
 
 Never bypass the manual approval gate for production migrations.
 
 **Why:** Database changes are high-risk. Human review is critical.
 
-### 3. CI must pass
+### 4. CI must pass
 
 Never merge a PR if CI fails.
 
 **Why:** Indicates the migration will fail in production.
 
-### 4. No autogenerate
+### 5. No autogenerate
 
 Never use `alembic revision --autogenerate`.
 
