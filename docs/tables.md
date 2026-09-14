@@ -165,6 +165,8 @@ CREATE TABLE "RAT_EXPORT_JOB" (
     file_id              VARCHAR(200),
     error_message        TEXT,
     cancel_requested_at  TIMESTAMPTZ,
+    total_items          INTEGER,
+    processed_items      INTEGER       NOT NULL DEFAULT 0,
     created_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
@@ -177,6 +179,15 @@ requested and polled cooperatively by the running export loop -- pf-rates
 has no message queue in front of it (Cloud Run + BackgroundTasks only, by
 deliberate cost choice), so a job stops itself at its next checkpoint
 rather than being force-killed instantly from another instance.
+
+`total_items`/`processed_items` (added in migration `0006`) track
+progress while a job is 'running': `total_items` is the number of
+(currency, date) pairs the export loop will visit, resolved once at the
+start of execution (NULL before then); `processed_items` increases as
+the loop advances. `GET /exchange-rates/export/jobs` and the single-job
+GET derive a `progress_percent` from these two columns rather than
+storing it directly -- one source of truth, no risk of the stored
+percentage drifting from the raw counts.
 
 **Sample data:**
 | id | status | lookback_days | forward_days | rows_written | file_id |

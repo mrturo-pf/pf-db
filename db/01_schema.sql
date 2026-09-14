@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS "RAT_EXPORT_JOB" (
     file_id              VARCHAR(200),
     error_message        TEXT,
     cancel_requested_at  TIMESTAMPTZ,
+    total_items          INTEGER       CHECK (total_items IS NULL OR total_items >= 0),
+    processed_items      INTEGER       NOT NULL DEFAULT 0 CHECK (processed_items >= 0),
     created_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
