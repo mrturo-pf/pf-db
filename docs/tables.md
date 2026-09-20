@@ -167,12 +167,25 @@ CREATE TABLE "RAT_EXPORT_JOB" (
     cancel_requested_at  TIMESTAMPTZ,
     total_items          INTEGER,
     processed_items      INTEGER       NOT NULL DEFAULT 0,
+    export_kind          VARCHAR(20)   NOT NULL DEFAULT 'exchange_rates'
+        CHECK (export_kind IN ('exchange_rates', 'combined')),
     created_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_rat_export_job_status_created ON "RAT_EXPORT_JOB" (status, created_at);
 ```
+
+`export_kind` (added in migration `0007`) distinguishes which endpoint
+produced the job: `'exchange_rates'` for `POST /exchange-rates/export
+{"async": true}` (the default, covering every row that existed before
+this column), or `'combined'` for `POST /exports/financial-data
+{"async": true}` (combines RAT_EXCH_RATE and RAT_ECON_INDEX into one
+CSV). The job-lifecycle endpoints themselves
+(`GET/POST /exchange-rates/export/jobs/{id}`) are not duplicated per kind
+-- they already read this table by id regardless of what produced the
+row, so a `'combined'` job is polled/cancelled through the exact same
+paths as an `'exchange_rates'` one.
 
 `cancel_requested_at` (added in migration `0005`) is set once a stop is
 requested and polled cooperatively by the running export loop -- pf-rates
