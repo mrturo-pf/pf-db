@@ -146,10 +146,10 @@ CREATE TABLE "RAT_TAX_BRCKT" (
 
 ### RAT_EXPORT_JOB
 
-Async CSV export job tracking (`POST /exchange-rates/export {"async": true}`),
+Async CSV export job tracking (`POST /exports/financial-data {"async": true}`),
 including cooperative cancellation
-(`POST /exchange-rates/export/jobs/{id}/stop` and the bulk
-`POST /exchange-rates/export/jobs/stop`).
+(`POST /exports/jobs/{job_id}/stop` and the bulk
+`POST /exports/jobs/stop`).
 
 **Owner:** pf-rates
 
@@ -192,7 +192,7 @@ rather than being force-killed instantly from another instance.
 progress while a job is 'running': `total_items` is the number of
 (currency, date) pairs the export loop will visit, resolved once at the
 start of execution (NULL before then); `processed_items` increases as
-the loop advances. `GET /exchange-rates/export/jobs` and the single-job
+the loop advances. `GET /exports/jobs` and the single-job
 GET derive a `progress_percent` from these two columns rather than
 storing it directly -- one source of truth, no risk of the stored
 percentage drifting from the raw counts.
