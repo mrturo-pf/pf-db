@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# Serialize migration runs instead of letting approved-close-together runs
+# race to apply migrations against the same Neon DB concurrently. See the
+# matching comment in pf-common's deploy-reusable.yml for the full story.
+concurrency:
+  group: deploy-pf-db-production
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
