@@ -1,6 +1,4 @@
 .env
-secrets/*.env
-secrets/*.sql
 *.egg-info/
 .venv/
 __pycache__/
