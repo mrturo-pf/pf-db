@@ -106,6 +106,16 @@ On push to `main`, the pipeline pauses for **manual approval** via the `producti
 
 **Rejecting or cancelling does not send any notification** - it simply stops the pipeline.
 
+### Auto-expiry of forgotten approvals
+
+A separate scheduled workflow, `expire-stale-approvals.yml` (hourly cron, calls
+`pf-common`'s `expire-stale-approvals-reusable.yml`), automatically **rejects** any
+run still stuck in the manual approval gate after **12 hours**. GitHub's environment
+protection rules have no native timeout, so without this, a forgotten/unapproved push
+to `main` would wait for approval indefinitely. This requires the `GH_PAT` secret --
+the default `GITHUB_TOKEN` is deliberately blocked by GitHub from approving or
+rejecting its own environment gates.
+
 ## Migration application workflow
 
 Once approved, migrations are applied to production via **Cloud Run Job**.
