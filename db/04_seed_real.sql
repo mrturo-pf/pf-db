@@ -20,11 +20,30 @@ WHERE pi.code = 'AFP_PLANVITAL'
 -- ============================================================
 -- 2. Health plans
 -- ============================================================
+-- One-time correction: a prior version of this file inserted an
+-- open-ended 'Base' tier at 2024-11-01/5.42 UF, keyed for idempotency on
+-- (valid_from, plan_name). The health-additional-uf-mismatch investigation
+-- later corrected that same row (Neon id 8 at the time) via UPDATE ...
+-- SET valid_from = '2026-03-01' instead of DELETE+INSERT (see
+-- pf-payroll/docs/investigations/health-additional-uf-mismatch.md,
+-- Session 4). That silently broke this file's NOT-EXISTS idempotency
+-- check: once the real row's valid_from moved away from '2024-11-01',
+-- any later deploy re-running this file with the old VALUES list found
+-- no conflict and re-inserted the stale, already-fixed-away value --
+-- which then double-counts against the correct time-versioned tier below
+-- for every period from 2024-11 onward (get_health_plans_overlapping_month()
+-- deliberately returns every overlapping plan, so two 'Base' rows both
+-- contribute). This DELETE is idempotent and safe to keep permanently.
+DELETE FROM "PAY_HLTH_PLAN"
+WHERE plan_name = 'Base'
+  AND valid_from = '2024-11-01'
+  AND valid_to IS NULL
+  AND contracted_uf = 5.42;
+
 INSERT INTO "PAY_HLTH_PLAN" (institution_id, valid_from, valid_to, plan_name, contracted_uf)
 SELECT hi.id, entry.valid_from, entry.valid_to, entry.plan_name, entry.contracted_uf
 FROM "PAY_HLTH_INST" hi
 CROSS JOIN (VALUES
-    (DATE '2024-11-01', NULL::DATE,        'Base',        5.42::NUMERIC(10,4)),
     (DATE '2025-02-25', DATE '2025-02-28', 'Base',        4.94::NUMERIC(10,4)),
     (DATE '2025-03-01', DATE '2025-07-31', 'Base',        4.94::NUMERIC(10,4)),
     (DATE '2025-08-01', DATE '2025-12-31', 'Base',        5.19::NUMERIC(10,4)),
