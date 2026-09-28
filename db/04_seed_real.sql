@@ -24,9 +24,15 @@ INSERT INTO "PAY_HLTH_PLAN" (institution_id, valid_from, valid_to, plan_name, co
 SELECT hi.id, entry.valid_from, entry.valid_to, entry.plan_name, entry.contracted_uf
 FROM "PAY_HLTH_INST" hi
 CROSS JOIN (VALUES
-    (DATE '2024-11-01', NULL::DATE, 'Base',        5.42::NUMERIC(10,4)),
-    (DATE '2024-11-01', NULL::DATE, 'GES',         0.91::NUMERIC(10,4)),
-    (DATE '2024-11-01', NULL::DATE, 'Adicionales', 0.79::NUMERIC(10,4))
+    (DATE '2024-11-01', NULL::DATE,        'Base',        5.42::NUMERIC(10,4)),
+    (DATE '2025-02-25', DATE '2025-02-28', 'Base',        4.94::NUMERIC(10,4)),
+    (DATE '2025-03-01', DATE '2025-07-31', 'Base',        4.94::NUMERIC(10,4)),
+    (DATE '2025-08-01', DATE '2025-12-31', 'Base',        5.19::NUMERIC(10,4)),
+    (DATE '2026-01-01', DATE '2026-02-28', 'Base',        5.30::NUMERIC(10,4)),
+    (DATE '2026-03-01', DATE '2026-05-31', 'Base',        5.42::NUMERIC(10,4)),
+    (DATE '2026-06-01', NULL::DATE,        'Base',        5.53::NUMERIC(10,4)),
+    (DATE '2024-11-01', NULL::DATE,        'GES',         0.91::NUMERIC(10,4)),
+    (DATE '2024-11-01', NULL::DATE,        'Adicionales', 0.79::NUMERIC(10,4))
 ) AS entry(valid_from, valid_to, plan_name, contracted_uf)
 WHERE hi.code = 'ESENCIAL'
   AND NOT EXISTS (
