@@ -2,11 +2,20 @@
 
 Complete documentation of the 18 tables managed by pf-db, including ownership, relationships, and connection details.
 
+**Source of truth:** every schema block below is copied verbatim from
+[`db/01_schema.sql`](../db/01_schema.sql). If this file and `01_schema.sql` ever
+disagree, `01_schema.sql` wins -- treat that as a bug in this doc, not the other way
+around.
+
 ## Overview
 
 pf-db manages **18 tables** across two domains:
 - **Financial rates:** 5 tables (owned by pf-rates)
 - **Payroll:** 13 tables + 1 materialized view (owned by pf-payroll)
+
+Payroll models a **single person's own payroll across one or more employers** over
+time, not a multi-employee company payroll system -- `PAY_PERIOD` has no
+employee-level column at all, only `employer_id` + `period_year`/`period_month`.
 
 ## Table ownership
 
@@ -29,27 +38,46 @@ Set via `PF_DATABASE_URL` in Secret Manager, injected into Cloud Run services at
 
 Each consuming microservice sets its own env-var prefix for the connection string.
 
-## Financial rates tables (4 tables)
+## Seed files
+
+Three seed files layer on top of `01_schema.sql`, each with a different purpose --
+see [`development.md`](development.md) for the Make targets that run them:
+
+| File | Purpose | Idempotency |
+|---|---|---|
+| `db/02_seed_base.sql` | Authoritative catalog rows (currencies, institutions, contribution caps, concepts) safe for **every** environment. Upserts, then deletes any row not in the file -- a FK-referenced row about to be deleted rolls back the whole transaction instead of silently orphaning children. | Full upsert + prune |
+| `db/03_seed_test.sql` | Non-production fixtures: one zero-value pension/health plan per institution (so tests have *something* to reference), plus a few fake complementary-insurance providers/plans. | Insert-if-not-exists, no prune |
+| `db/04_seed_real.sql` | Real/production-like data: actual AFP PlanVital commission rate, actual ESENCIAL health plan tiers (Base/GES/Adicionales), real historical contribution caps by year, and three real employers (`DALT-CONSULTORES`, `CLINICA-ALEMANA`, `WALMART-CHILE`). | Insert-if-not-exists / upsert, no prune |
+
+## Financial rates tables (5 tables)
 
 ### RAT_CURRENCY
 
-Supported currencies for exchange rates.
+Supported currencies **and index units** (UF/UTM are not fiat currencies but share
+this table, distinguished by `unit_kind`).
 
 **Owner:** pf-rates
 
 **Schema:**
 ```sql
 CREATE TABLE "RAT_CURRENCY" (
-    code VARCHAR(3) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL
+    code      CHAR(3)     PRIMARY KEY,
+    name      VARCHAR(60) NOT NULL,
+    is_fiat   BOOLEAN     NOT NULL DEFAULT TRUE,
+    unit_kind VARCHAR(20) NOT NULL DEFAULT 'currency'
+        CHECK (unit_kind IN ('currency', 'index_unit'))
 );
 ```
 
-**Sample data:**
-| code | name |
-|---|---|
-| USD | United States Dollar |
-| EUR | Euro |
+**Sample data** (`db/02_seed_base.sql`, the full/authoritative set -- rows not in this
+file get deleted):
+| code | name | is_fiat | unit_kind |
+|---|---|---|---|
+| CLP | Peso chileno | true | currency |
+| USD | US Dollar | true | currency |
+| EUR | Euro | true | currency |
+| UF | Unidad de Fomento | false | index_unit |
+| UTM | Unidad Tributaria Mensual | false | index_unit |
 
 **Seed:** `db/02_seed_base.sql`
 
@@ -57,90 +85,88 @@ CREATE TABLE "RAT_CURRENCY" (
 
 ### RAT_EXCH_RATE
 
-Historical exchange rates (CLP value for foreign currencies).
+Historical exchange rates (CLP value for foreign currencies and index units).
 
 **Owner:** pf-rates
 
 **Schema:**
 ```sql
 CREATE TABLE "RAT_EXCH_RATE" (
-    id SERIAL PRIMARY KEY,
-    currency_code VARCHAR(3) REFERENCES "RAT_CURRENCY"(code),
-    rate_date DATE NOT NULL,
-    value_clp NUMERIC(12, 4) NOT NULL,
+    id            BIGSERIAL     PRIMARY KEY,
+    currency_code CHAR(3)       NOT NULL REFERENCES "RAT_CURRENCY"(code),
+    rate_date     DATE          NOT NULL,
+    value_clp     NUMERIC(18,6) NOT NULL CHECK (value_clp > 0),
+    source        VARCHAR(40)   NOT NULL DEFAULT 'manual',
+    created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     UNIQUE (currency_code, rate_date)
 );
 ```
 
-**Sample data:**
-| id | currency_code | rate_date | value_clp |
-|---|---|---|---|
-| 1 | USD | 2024-01-15 | 897.5000 |
-| 2 | EUR | 2024-01-15 | 978.2500 |
+**No seed file** -- populated at runtime by `POST /exchange-rates/refresh` and the
+startup background sync (SII for `UF`/`UTM`, `mindicador.cl` fallback, optional BCCh
+credentials for `USD`/`EUR`). `source` records which provider resolved that row.
 
-**Source:** Mindicador.cl, Banco Central de Chile (BCCH)
+**Source:** Mindicador.cl, Banco Central de Chile (BCCh), SII
 
 ---
 
 ### RAT_ECON_INDEX
 
-Economic indices (UF, UTM, IPC) with monthly values.
+Economic indices (`UF`, `UTM`, `IPC_CL`) with monthly values and period-over-period
+change rates.
 
 **Owner:** pf-rates
 
 **Schema:**
 ```sql
 CREATE TABLE "RAT_ECON_INDEX" (
-    id SERIAL PRIMARY KEY,
-    code VARCHAR(10) NOT NULL,
-    year INTEGER NOT NULL,
-    month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
-    value NUMERIC(12, 2) NOT NULL CHECK (value > 0),
-    UNIQUE (code, year, month)
+    id             BIGSERIAL     PRIMARY KEY,
+    code           VARCHAR(20)   NOT NULL,
+    period_year    SMALLINT      NOT NULL CHECK (period_year BETWEEN 1990 AND 2100),
+    period_month   SMALLINT      NOT NULL CHECK (period_month BETWEEN 1 AND 12),
+    index_value    NUMERIC(12,6) NOT NULL CHECK (index_value > 0),
+    monthly_change NUMERIC(7,4),
+    yearly_change  NUMERIC(7,4),
+    base_period    VARCHAR(10)   NOT NULL DEFAULT 'DIC-2018',
+    source         VARCHAR(40)   NOT NULL DEFAULT 'manual',
+    created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_economic_indices UNIQUE (code, period_year, period_month)
 );
 ```
 
-**Sample data:**
-| id | code | year | month | value |
-|---|---|---|---|---|
-| 1 | UF | 2024 | 1 | 36500.25 |
-| 2 | UTM | 2024 | 1 | 65000.00 |
-| 3 | IPC | 2024 | 1 | 145.30 |
+**No seed file** -- populated at runtime by `POST /economic-indices/refresh` and the
+startup background sync.
 
-**Source:** Banco Central de Chile (BCCH), INE (IPC)
+**Source:** Banco Central de Chile (BCCh), INE (`IPC_CL`)
 
-**Note:** UF includes pre-published future values (BCCH publishes up to 3 months ahead).
+**Note:** UF may include pre-published future values (BCCh publishes roughly a month ahead).
 
 ---
 
 ### RAT_TAX_BRCKT
 
-Income tax brackets for Chilean payroll tax calculation.
+Income tax brackets for Chilean monthly withholding, as **valid-date ranges** rather
+than one row per calendar year.
 
 **Owner:** pf-rates
 
 **Schema:**
 ```sql
 CREATE TABLE "RAT_TAX_BRCKT" (
-    id SERIAL PRIMARY KEY,
-    year INTEGER NOT NULL,
-    lower_bound_utm NUMERIC(6, 2) NOT NULL,
-    upper_bound_utm NUMERIC(6, 2),
-    rate NUMERIC(5, 4) NOT NULL,
-    rebate_utm NUMERIC(6, 2) NOT NULL,
-    UNIQUE (year, lower_bound_utm)
+    id              BIGSERIAL     PRIMARY KEY,
+    valid_from      DATE          NOT NULL,
+    valid_to        DATE,
+    lower_bound_utm NUMERIC(10,4) NOT NULL CHECK (lower_bound_utm >= 0),
+    upper_bound_utm NUMERIC(10,4),
+    marginal_rate   NUMERIC(8,6)  NOT NULL CHECK (marginal_rate >= 0 AND marginal_rate <= 1),
+    rebate_utm      NUMERIC(10,4) NOT NULL DEFAULT 0 CHECK (rebate_utm >= 0),
+    CONSTRAINT chk_income_tax_bracket_bounds
+        CHECK (upper_bound_utm IS NULL OR upper_bound_utm > lower_bound_utm),
+    UNIQUE (valid_from, lower_bound_utm)
 );
 ```
 
-**Sample data (2024):**
-| id | year | lower_bound_utm | upper_bound_utm | rate | rebate_utm |
-|---|---|---|---|---|---|
-| 1 | 2024 | 0.00 | 13.50 | 0.0000 | 0.00 |
-| 2 | 2024 | 13.50 | 30.00 | 0.0400 | 0.54 |
-| 3 | 2024 | 30.00 | 50.00 | 0.0800 | 1.74 |
-| 4 | 2024 | 50.00 | 70.00 | 0.1350 | 4.49 |
-
-**Seed:** `db/02_seed_base.sql`
+**No seed file** -- populated at runtime by `POST /income-tax-brackets/refresh` (SII).
 
 ---
 
@@ -148,8 +174,7 @@ CREATE TABLE "RAT_TAX_BRCKT" (
 
 Async CSV export job tracking (`POST /exports/financial-data {"async": true}`),
 including cooperative cancellation
-(`POST /exports/jobs/{job_id}/stop` and the bulk
-`POST /exports/jobs/stop`).
+(`POST /exports/jobs/{job_id}/stop` and the bulk `POST /exports/jobs/stop`).
 
 **Owner:** pf-rates
 
@@ -158,6 +183,7 @@ including cooperative cancellation
 CREATE TABLE "RAT_EXPORT_JOB" (
     id                   BIGSERIAL     PRIMARY KEY,
     status               VARCHAR(20)   NOT NULL DEFAULT 'pending'
+        CONSTRAINT chk_rat_export_job_status
         CHECK (status IN ('pending', 'running', 'succeeded', 'failed', 'cancelled')),
     lookback_days        INTEGER       NOT NULL CHECK (lookback_days >= 0),
     forward_days         INTEGER       NOT NULL CHECK (forward_days >= 0),
@@ -165,8 +191,8 @@ CREATE TABLE "RAT_EXPORT_JOB" (
     file_id              VARCHAR(200),
     error_message        TEXT,
     cancel_requested_at  TIMESTAMPTZ,
-    total_items          INTEGER,
-    processed_items      INTEGER       NOT NULL DEFAULT 0,
+    total_items          INTEGER       CHECK (total_items IS NULL OR total_items >= 0),
+    processed_items      INTEGER       NOT NULL DEFAULT 0 CHECK (processed_items >= 0),
     created_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
@@ -174,38 +200,28 @@ CREATE TABLE "RAT_EXPORT_JOB" (
 CREATE INDEX idx_rat_export_job_status_created ON "RAT_EXPORT_JOB" (status, created_at);
 ```
 
-`export_kind` (added in migration `0007`, dropped in migration `0008`)
-used to distinguish which endpoint produced the job -- `'exchange_rates'`
-for the now-removed `POST /exchange-rates/export`, or `'combined'` for
-`POST /exports/financial-data`. Once the exchange-rates-only endpoint was
-retired, `POST /exports/financial-data` became the only export trigger
-left in pf-rates, so the discriminator no longer distinguished between
-anything and was removed.
+`export_kind` (added in migration `0007`, dropped in migration `0008`) used to
+distinguish which endpoint produced the job -- `'exchange_rates'` for the
+now-removed `POST /exchange-rates/export`, or `'combined'` for
+`POST /exports/financial-data`. Once the exchange-rates-only endpoint was retired,
+`POST /exports/financial-data` became the only export trigger left, so the
+discriminator no longer distinguished between anything and was removed.
 
-`cancel_requested_at` (added in migration `0005`) is set once a stop is
-requested and polled cooperatively by the running export loop -- pf-rates
-has no message queue in front of it (Cloud Run + BackgroundTasks only, by
-deliberate cost choice), so a job stops itself at its next checkpoint
-rather than being force-killed instantly from another instance.
+`cancel_requested_at` (added in migration `0005`) is set once a stop is requested and
+polled cooperatively by the running export loop -- pf-rates has no message queue in
+front of it (Cloud Run + BackgroundTasks only, by deliberate cost choice), so a job
+stops itself at its next checkpoint rather than being force-killed instantly from
+another instance.
 
-`total_items`/`processed_items` (added in migration `0006`) track
-progress while a job is 'running': `total_items` is the number of
-(currency, date) pairs the export loop will visit, resolved once at the
-start of execution (NULL before then); `processed_items` increases as
-the loop advances. `GET /exports/jobs` and the single-job
-GET derive a `progress_percent` from these two columns rather than
-storing it directly -- one source of truth, no risk of the stored
-percentage drifting from the raw counts.
+`total_items`/`processed_items` (added in migration `0006`) track progress while a
+job is `'running'`: `total_items` is the number of (currency, date) pairs the export
+loop will visit, resolved once at the start of execution (`NULL` before then);
+`processed_items` increases as the loop advances. `GET /exports/jobs` and the
+single-job GET derive a `progress_percent` from these two columns rather than storing
+it directly -- one source of truth, no risk of the stored percentage drifting from
+the raw counts.
 
-**Sample data:**
-| id | status | lookback_days | forward_days | rows_written | file_id |
-|---|---|---|---|---|---|
-| 1 | succeeded | 6100 | 30 | 24521 | 1a2b3c... |
-
-****Note:** row is created by the trigger request and updated in place by the
-background task as it progresses (`pending` -> `running` ->
-`succeeded`/`failed`/`cancelled`). No seed data -- purely operational/runtime
-state.
+**No seed file** -- purely operational/runtime state, created by each export trigger.
 
 ---
 
@@ -220,21 +236,28 @@ AFP (pension fund administrator) institutions.
 **Schema:**
 ```sql
 CREATE TABLE "PAY_PENS_INST" (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE
+    id             BIGSERIAL    PRIMARY KEY,
+    code           VARCHAR(40)  NOT NULL UNIQUE,
+    name           VARCHAR(120) NOT NULL,
+    mandatory_rate NUMERIC(6,4) NOT NULL DEFAULT 0.10,
+    is_active      BOOLEAN      NOT NULL DEFAULT TRUE
 );
 ```
 
-**Sample data:**
-| id | name |
-|---|---|
-| 1 | Capital |
-| 2 | Cuprum |
-| 3 | Habitat |
-| 4 | PlanVital |
-| 5 | Provida |
-| 6 | Modelo |
-| 7 | Uno |
+**Sample data** (`db/02_seed_base.sql`, the full/authoritative set):
+| code | name | mandatory_rate | is_active |
+|---|---|---|---|
+| AFP_CAPITAL | AFP Capital | 0.10 | false |
+| AFP_CUPRUM | AFP Cuprum | 0.10 | false |
+| AFP_HABITAT | AFP Habitat | 0.10 | false |
+| AFP_MODELO | AFP Modelo | 0.10 | false |
+| AFP_PLANVITAL | AFP PlanVital | 0.10 | **true** |
+| AFP_PROVIDA | AFP ProVida | 0.10 | false |
+| AFP_UNO | AFP Uno | 0.10 | false |
+
+Only `AFP_PLANVITAL` is `is_active`, since it's the only one with a real assigned
+plan today (see `PAY_PENS_PLAN` below) -- `is_active` gates whether reference-data
+endpoints/lookups surface an institution by default, not whether the row exists.
 
 **Seed:** `db/02_seed_base.sql`
 
@@ -249,21 +272,28 @@ Health institutions (Fonasa + Isapres).
 **Schema:**
 ```sql
 CREATE TABLE "PAY_HLTH_INST" (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE
+    id             BIGSERIAL               PRIMARY KEY,
+    code           VARCHAR(40)             NOT NULL UNIQUE,
+    name           VARCHAR(120)            NOT NULL,
+    kind           health_institution_kind NOT NULL,
+    mandatory_rate NUMERIC(6,4)            NOT NULL DEFAULT 0.07,
+    is_active      BOOLEAN                 NOT NULL DEFAULT TRUE
 );
 ```
 
-**Sample data:**
-| id | name |
-|---|---|
-| 1 | Fonasa |
-| 2 | Banmédica |
-| 3 | Colmena |
-| 4 | Consalud |
-| 5 | Cruz Blanca |
-| 6 | Nueva Masvida |
-| 7 | Vida Tres |
+Where `health_institution_kind` is `ENUM ('fonasa', 'isapre')`.
+
+**Sample data** (`db/02_seed_base.sql`, the full/authoritative set):
+| code | name | kind | is_active |
+|---|---|---|---|
+| FONASA | Fonasa | fonasa | false |
+| BANMEDICA | Banmedica | isapre | false |
+| COLMENA | Colmena | isapre | false |
+| CONSALUD | Consalud | isapre | false |
+| CRUZBLANCA | CruzBlanca | isapre | false |
+| ESENCIAL | Esencial | isapre | **true** |
+| NUEVA_MASVIDA | Nueva Masvida | isapre | false |
+| VIDA_TRES | Vida Tres | isapre | false |
 
 **Seed:** `db/02_seed_base.sql`
 
@@ -271,234 +301,348 @@ CREATE TABLE "PAY_HLTH_INST" (
 
 ### PAY_PENS_PLAN
 
-Pension plan types.
+Pension plan **tiers**, one or more per institution, each valid over a date range
+with its own `additional_rate` (the voluntary/commission add-on on top of the
+institution's `mandatory_rate`).
 
 **Owner:** pf-payroll
 
 **Schema:**
 ```sql
 CREATE TABLE "PAY_PENS_PLAN" (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE
+    id              BIGSERIAL    PRIMARY KEY,
+    institution_id  BIGINT       NOT NULL REFERENCES "PAY_PENS_INST"(id),
+    valid_from      DATE         NOT NULL,
+    valid_to        DATE,
+    additional_rate NUMERIC(6,4) NOT NULL DEFAULT 0 CHECK (additional_rate >= 0),
+    CONSTRAINT chk_pension_plan_dates CHECK (valid_to IS NULL OR valid_to >= valid_from)
 );
 ```
 
 **Sample data:**
-| id | name |
-|---|---|
-| 1 | Mandatory |
-| 2 | Voluntary |
+- `db/03_seed_test.sql`: one `additional_rate = 0`, `valid_from = 2026-01-01`,
+  open-ended plan per institution (a placeholder so tests always have *something*
+  to reference).
+- `db/04_seed_real.sql`: the real `AFP_PLANVITAL` plan, `additional_rate = 0.0116`,
+  `valid_from = 2024-11-01`, open-ended.
 
-**Seed:** `db/03_seed_test.sql`
+**Seed:** `db/03_seed_test.sql`, `db/04_seed_real.sql`
 
 ---
 
 ### PAY_HLTH_PLAN
 
-Health plan types.
+Health plan **tiers**, one or more per institution, each valid over a date range
+with its own `contracted_uf`. A single payroll period is typically linked to
+*multiple* rows here at once via `PAY_PRD_HLTH` (e.g. `Base` + `GES` + `Adicionales`
+tiers for the same Isapre) -- see
+[`health-additional-uf-mismatch.md`](investigations/health-additional-uf-mismatch.md)
+for the domain logic (`prorated_contracted_uf()` /
+`prorated_additional_amount_clp()` in pf-payroll's
+`domain/health_plan_proration.py`) that prorates each tier by its day-overlap with
+the period when a plan starts or ends mid-month.
 
 **Owner:** pf-payroll
 
 **Schema:**
 ```sql
 CREATE TABLE "PAY_HLTH_PLAN" (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE
+    id             BIGSERIAL     PRIMARY KEY,
+    institution_id BIGINT        NOT NULL REFERENCES "PAY_HLTH_INST"(id),
+    valid_from     DATE          NOT NULL,
+    valid_to       DATE,
+    plan_name      VARCHAR(120),
+    contracted_uf  NUMERIC(10,4) NOT NULL DEFAULT 0 CHECK (contracted_uf >= 0),
+    CONSTRAINT chk_health_plan_dates CHECK (valid_to IS NULL OR valid_to >= valid_from)
 );
 ```
 
 **Sample data:**
-| id | name |
-|---|---|
-| 1 | Fonasa |
-| 2 | Isapre |
+- `db/03_seed_test.sql`: one `plan_name = 'Base'`, `contracted_uf = 0`,
+  `valid_from = 2026-01-01`, open-ended plan per institution (placeholder).
+- `db/04_seed_real.sql`: three real `ESENCIAL` tiers, all `valid_from = 2024-11-01`,
+  open-ended: `Base` (5.42 UF), `GES` (0.91 UF), `Adicionales` (0.79 UF). In
+  practice this table also accumulates manually-inserted rows for mid-month plan
+  changes (non-contiguous `valid_from`/`valid_to` per tier) -- see the
+  investigation doc linked above for a real example.
 
-**Seed:** `db/03_seed_test.sql`
+**Seed:** `db/03_seed_test.sql`, `db/04_seed_real.sql`
 
 ---
 
 ### PAY_CNTRB_CAP
 
-Monthly contribution caps (UF-based).
+Monthly contribution caps (UF-based), one row per `cap_type` per valid-date range.
 
 **Owner:** pf-payroll
 
 **Schema:**
 ```sql
 CREATE TABLE "PAY_CNTRB_CAP" (
-    id SERIAL PRIMARY KEY,
-    year INTEGER NOT NULL,
-    month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
-    afp_cap_uf NUMERIC(6, 2) NOT NULL,
-    health_cap_uf NUMERIC(6, 2) NOT NULL,
-    UNIQUE (year, month)
+    id         BIGSERIAL             PRIMARY KEY,
+    cap_type   contribution_cap_type NOT NULL,
+    valid_from DATE                  NOT NULL,
+    valid_to   DATE,
+    value_uf   NUMERIC(10,4)         NOT NULL CHECK (value_uf > 0),
+    UNIQUE (cap_type, valid_from)
 );
 ```
 
+Where `contribution_cap_type` is `ENUM ('pension_health', 'unemployment')`.
+
 **Sample data:**
-| id | year | month | afp_cap_uf | health_cap_uf |
-|---|---|---|---|---|
-| 1 | 2024 | 1 | 83.30 | 99.20 |
+- `db/02_seed_base.sql` (placeholder, superseded by real historical tiers below):
+  `pension_health` / `unemployment`, both `valid_from = 2018-01-01`, open-ended,
+  `90.06` / `135.09` UF respectively.
+- `db/04_seed_real.sql` (real historical `pension_health` tiers):
 
-**Seed:** `db/02_seed_base.sql`
+  | valid_from | valid_to | value_uf |
+  |---|---|---|
+  | 2024-01-01 | 2024-12-31 | 84.30 |
+  | 2025-01-01 | 2025-12-31 | 87.80 |
+  | 2026-01-01 | 2026-01-31 | 89.90 |
+  | 2026-02-01 | (open) | 90.00 |
 
-**Note:** Caps are updated monthly by SII (Servicio de Impuestos Internos).
+**Seed:** `db/02_seed_base.sql`, `db/04_seed_real.sql`
+
+**Note:** SII/the regulator republishes these caps periodically (roughly yearly) --
+they are not "monthly" in the sense of one row per month, just one row per
+effective-date change.
 
 ---
 
 ### PAY_COMP_PROV
 
-Complementary insurance providers.
+Complementary (voluntary) insurance providers.
 
 **Owner:** pf-payroll
 
 **Schema:**
 ```sql
 CREATE TABLE "PAY_COMP_PROV" (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE
+    id   BIGSERIAL    PRIMARY KEY,
+    name VARCHAR(120) NOT NULL UNIQUE
 );
 ```
 
-**Sample data:**
-| id | name |
-|---|---|
-| 1 | Vida Security |
-| 2 | Consorcio |
+**Sample data:** `SEGUROS CAJA`, `ISANA`, `CONSALUD` (`db/03_seed_test.sql`);
+`METLIFE` (`db/04_seed_real.sql`, the real provider).
 
-**Seed:** `db/03_seed_test.sql`
+**Seed:** `db/03_seed_test.sql`, `db/04_seed_real.sql`
 
 ---
 
 ### PAY_COMP_PLAN
 
-Complementary insurance plan types.
+Complementary insurance plans, each belonging to one provider, with a cost that can
+be a fixed CLP amount, a fixed UF amount, or a percentage of the taxable base.
 
 **Owner:** pf-payroll
 
 **Schema:**
 ```sql
 CREATE TABLE "PAY_COMP_PLAN" (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE
+    id            BIGSERIAL                         PRIMARY KEY,
+    provider_id   BIGINT                            NOT NULL
+        REFERENCES "PAY_COMP_PROV"(id),
+    name          VARCHAR(120)                      NOT NULL,
+    cost_type     complementary_insurance_cost_type NOT NULL,
+    cost_value    NUMERIC(12,4)                     NOT NULL CHECK (cost_value >= 0),
+    cost_currency CHAR(3)                           NOT NULL DEFAULT 'CLP',
+    valid_from    DATE                              NOT NULL,
+    valid_to      DATE,
+    CONSTRAINT chk_complementary_plan_dates
+        CHECK (valid_to IS NULL OR valid_to >= valid_from)
 );
 ```
 
-**Sample data:**
-| id | name |
-|---|---|
-| 1 | Basic |
-| 2 | Premium |
+Where `complementary_insurance_cost_type` is
+`ENUM ('fixed_clp', 'fixed_uf', 'variable_percentage')`.
 
-**Seed:** `db/03_seed_test.sql`
+**Sample data:** fake fixed/variable plan pairs for `SEGUROS CAJA`/`ISANA`/`CONSALUD`
+(`db/03_seed_test.sql`); real `METLIFE` plans -- dental, health, and catastrophic
+coverage, all `fixed_uf` (`db/04_seed_real.sql`).
+
+**Seed:** `db/03_seed_test.sql`, `db/04_seed_real.sql`
 
 ---
 
 ### PAY_EMPLOYER
 
-Employer entities.
+Employer entities -- one payroll history's worth of employer configuration,
+including the rules used to derive each period's `payment_date` when it isn't
+supplied directly.
 
 **Owner:** pf-payroll
 
 **Schema:**
 ```sql
 CREATE TABLE "PAY_EMPLOYER" (
-    id SERIAL PRIMARY KEY,
-    rut VARCHAR(12) NOT NULL UNIQUE,
-    name VARCHAR(255) NOT NULL
+    id                                       BIGSERIAL                  PRIMARY KEY,
+    name                                     VARCHAR(120)               NOT NULL UNIQUE,
+    tax_id                                   VARCHAR(32),
+    country_code                             CHAR(2)                    NOT NULL DEFAULT 'CL',
+    started_at                               DATE                       NOT NULL,
+    ended_at                                 DATE,
+    first_increase_period_year               SMALLINT
+        CHECK (first_increase_period_year BETWEEN 1990 AND 2100),
+    first_increase_period_month              SMALLINT
+        CHECK (first_increase_period_month BETWEEN 1 AND 12),
+    increase_frequency                       SMALLINT
+        CHECK (increase_frequency > 0),
+    payment_date_rule                        employer_payment_date_rule NOT NULL
+        DEFAULT 'last_business_day_of_month',
+    payment_month_offset                     SMALLINT                   NOT NULL DEFAULT 0
+        CHECK (payment_month_offset >= 0),
+    payment_day_of_month                     SMALLINT
+        CHECK (payment_day_of_month BETWEEN 1 AND 31),
+    payment_business_day_offset              SMALLINT                   NOT NULL DEFAULT 0
+        CHECK (payment_business_day_offset >= 0),
+    payment_calendar_day_offset              SMALLINT                   NOT NULL DEFAULT 0
+        CHECK (payment_calendar_day_offset >= 0),
+    payment_effective_on_processing_next_day BOOLEAN                    NOT NULL DEFAULT FALSE,
+    payment_fixed_day_roll                   employer_fixed_day_roll    NOT NULL
+        DEFAULT 'previous_business_day'
 );
 ```
 
-**Sample data:**
-| id | rut | name |
-|---|---|---|
-| 1 | 76.123.456-7 | Example Corp |
+Where `employer_payment_date_rule` is
+`ENUM ('last_business_day_of_month', 'fixed_day_of_month', 'calendar_days_before_end_of_month')`
+and `employer_fixed_day_roll` is `ENUM ('previous_business_day', 'next_business_day')`.
+
+**Sample data** (`db/04_seed_real.sql`, the only seeded employers -- others get
+created ad hoc through the import flows):
+
+| name | tax_id | started_at | payment_date_rule |
+|---|---|---|---|
+| DALT-CONSULTORES | 52.005.257-7 | 2016-07-18 | last_business_day_of_month |
+| CLINICA-ALEMANA | 77.413.290-2 | 2018-04-03 | calendar_days_before_end_of_month |
+| WALMART-CHILE | 76.042.014-K | 2024-11-18 | last_business_day_of_month |
+
+**Seed:** `db/04_seed_real.sql`
 
 ---
 
 ### PAY_PERIOD
 
-Payroll periods (month/year + payment date).
+Payroll periods (one per employer + year + month). **No employee-level column** --
+this table tracks one person's own payroll, not a multi-employee company payroll.
 
 **Owner:** pf-payroll
 
 **Schema:**
 ```sql
 CREATE TABLE "PAY_PERIOD" (
-    id SERIAL PRIMARY KEY,
-    employer_id INTEGER REFERENCES "PAY_EMPLOYER"(id),
-    year INTEGER NOT NULL,
-    month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
-    payment_date DATE NOT NULL,
-    UNIQUE (employer_id, year, month)
+    id                       BIGSERIAL                NOT NULL PRIMARY KEY,
+    employer_id              BIGINT                   NOT NULL REFERENCES "PAY_EMPLOYER"(id),
+    period_year              SMALLINT                 NOT NULL,
+    period_month             SMALLINT                 NOT NULL,
+    payment_date             DATE                     NOT NULL,
+    worked_days              SMALLINT                 NOT NULL DEFAULT 30,
+    status                   payroll_status           NOT NULL DEFAULT 'projected',
+    employment_contract_kind employment_contract_kind NOT NULL DEFAULT 'indefinite',
+    declared_net_pay_clp     NUMERIC(18,2),
+    expected_net_pay_clp     NUMERIC(18,2),
+    net_pay_difference_clp   NUMERIC(18,2),
+    pension_plan_id          BIGINT                   REFERENCES "PAY_PENS_PLAN"(id),
+    UNIQUE (employer_id, period_year, period_month)
 );
-
-CREATE INDEX idx_payroll_periods_employer ON "PAY_PERIOD"(employer_id);
 ```
+
+Where `payroll_status` is `ENUM ('projected', 'actual', 'reviewed')` and
+`employment_contract_kind` is `ENUM ('indefinite', 'fixed_term')`.
+
+**No seed file** -- created by `POST /payroll/import/spreadsheet`,
+`POST /payroll/import/json`, or the CLI's `import-payroll` command.
 
 ---
 
 ### PAY_PRD_HLTH
 
-Health plan selections per payroll period.
+Junction table: which health plan tier(s) apply to a given period. Composite
+primary key, no surrogate `id` -- a period commonly links to more than one row here
+at once (e.g. `Base` + `GES` + `Adicionales`, see `PAY_HLTH_PLAN` above).
 
 **Owner:** pf-payroll
 
 **Schema:**
 ```sql
 CREATE TABLE "PAY_PRD_HLTH" (
-    id SERIAL PRIMARY KEY,
-    payroll_period_id INTEGER REFERENCES "PAY_PERIOD"(id),
-    health_institution_id INTEGER REFERENCES "PAY_HLTH_INST"(id),
-    plan_value_clp NUMERIC(12, 2) NOT NULL,
-    UNIQUE (payroll_period_id, health_institution_id)
+    period_id      BIGINT NOT NULL REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
+    health_plan_id BIGINT NOT NULL REFERENCES "PAY_HLTH_PLAN"(id),
+    PRIMARY KEY (period_id, health_plan_id)
 );
 ```
+
+**No seed file** -- assigned via `POST /payroll/{period_id}/assign-plans` or
+directly by the import flow.
 
 ---
 
 ### PAY_PRD_COMP
 
-Complementary insurance per payroll period.
+Junction table: which complementary insurance plan(s) apply to a given period.
+Composite primary key, same shape as `PAY_PRD_HLTH`.
 
 **Owner:** pf-payroll
 
 **Schema:**
 ```sql
 CREATE TABLE "PAY_PRD_COMP" (
-    id SERIAL PRIMARY KEY,
-    payroll_period_id INTEGER REFERENCES "PAY_PERIOD"(id),
-    provider_id INTEGER REFERENCES "PAY_COMP_PROV"(id),
-    plan_id INTEGER REFERENCES "PAY_COMP_PLAN"(id),
-    premium_clp NUMERIC(12, 2) NOT NULL
+    period_id                       BIGINT NOT NULL
+        REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
+    complementary_insurance_plan_id BIGINT NOT NULL
+        REFERENCES "PAY_COMP_PLAN"(id),
+    PRIMARY KEY (period_id, complementary_insurance_plan_id)
 );
 ```
+
+**No seed file** -- assigned the same way as `PAY_PRD_HLTH`.
 
 ---
 
 ### PAY_CONCEPT
 
-Custom payroll concepts (bonuses, deductions).
+Payroll concept catalog (income lines and discount lines). Closed, seeded catalog --
+`concept_code` values used elsewhere (e.g. PDF import row resolution) must match a
+`code` here.
 
 **Owner:** pf-payroll
 
 **Schema:**
 ```sql
 CREATE TABLE "PAY_CONCEPT" (
-    id SERIAL PRIMARY KEY,
-    code VARCHAR(50) NOT NULL UNIQUE,
-    name VARCHAR(100) NOT NULL,
-    category VARCHAR(20) NOT NULL CHECK (category IN ('income', 'deduction'))
+    id         BIGSERIAL    PRIMARY KEY,
+    code       VARCHAR(40)  NOT NULL UNIQUE,
+    name       VARCHAR(120) NOT NULL,
+    kind       VARCHAR(20)  NOT NULL CHECK (kind IN ('income', 'discount')),
+    is_taxable BOOLEAN      NOT NULL DEFAULT FALSE
 );
 ```
 
-**Sample data:**
-| id | code | name | category |
-|---|---|---|---|
-| 1 | BASE_SALARY | Base Salary | income |
-| 2 | OVERTIME | Overtime | income |
-| 3 | AFP | AFP Contribution | deduction |
-| 4 | HEALTH | Health Contribution | deduction |
+**Sample data** (`db/02_seed_base.sql`, the full/authoritative set -- 20 rows):
+| code | kind | is_taxable |
+|---|---|---|
+| SALARY_BASE | income | true |
+| LEGAL_GRATUITY | income | true |
+| TELEWORK_REFUND | income | false |
+| HEALTH_INSURANCE_EMPLOYER_CONTRIBUTION | income | true |
+| VACATION_INCENTIVE | income | true |
+| HOLIDAY_BONUS | income | true |
+| AVAILABILITY_BONUS | income | true |
+| LEGAL_GRATUITY_ADJUSTMENT | income | true |
+| PRIOR_SALARY_DIFFERENCE | income | true |
+| PENSION_BASE | discount | false |
+| PENSION_ADDITIONAL | discount | false |
+| HEALTH_BASE | discount | false |
+| HEALTH_ADDITIONAL_UF | discount | false |
+| HEALTH_INSURANCE | discount | false |
+| VACATION_BONUS_ADVANCE | discount | false |
+| HOLIDAY_BONUS_ADVANCE | discount | false |
+| SALARY_ADVANCE | discount | false |
+| PRIOR_MONTH_LEAVE_ABSENCE_DISCOUNT | discount | false |
+| UNEMPLOYMENT_INSURANCE | discount | false |
+| INCOME_TAX | discount | false |
 
 **Seed:** `db/02_seed_base.sql`
 
@@ -506,87 +650,92 @@ CREATE TABLE "PAY_CONCEPT" (
 
 ### PAY_ITEM
 
-Individual payroll line items.
+Individual payroll line items -- one row per concept per period.
 
 **Owner:** pf-payroll
 
 **Schema:**
 ```sql
 CREATE TABLE "PAY_ITEM" (
-    id SERIAL PRIMARY KEY,
-    payroll_period_id INTEGER REFERENCES "PAY_PERIOD"(id),
-    employee_rut VARCHAR(12) NOT NULL,
-    concept_id INTEGER REFERENCES "PAY_CONCEPT"(id),
-    amount_clp NUMERIC(12, 2) NOT NULL
+    id         BIGSERIAL     PRIMARY KEY,
+    period_id  BIGINT        NOT NULL REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
+    concept_id BIGINT        NOT NULL REFERENCES "PAY_CONCEPT"(id),
+    amount_clp NUMERIC(18,2) NOT NULL,
+    notes      TEXT,
+    created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_payroll_items_period ON "PAY_ITEM"(payroll_period_id);
-CREATE INDEX idx_payroll_items_employee ON "PAY_ITEM"(employee_rut);
+CREATE INDEX idx_payroll_items_period_id  ON "PAY_ITEM"(period_id);
+CREATE INDEX idx_payroll_items_concept_id ON "PAY_ITEM"(concept_id);
 ```
+
+**No seed file** -- created by the same import flows as `PAY_PERIOD`.
 
 ---
 
 ### PAY_MV_SUMARY (materialized view)
 
-Aggregated payroll summaries for analytics.
+Aggregated per-period totals (gross income, taxable income, discounts, net pay) for
+fast reads, refreshed on writes rather than computed on every read.
 
 **Owner:** pf-payroll
 
 **Schema:**
 ```sql
 CREATE MATERIALIZED VIEW "PAY_MV_SUMARY" AS
-SELECT 
-    pp.id AS payroll_period_id,
-    pp.employer_id,
-    pp.year,
-    pp.month,
-    COUNT(DISTINCT pi.employee_rut) AS employee_count,
-    SUM(CASE WHEN pc.category = 'income' THEN pi.amount_clp ELSE 0 END) AS total_income,
-    SUM(CASE WHEN pc.category = 'deduction' THEN pi.amount_clp ELSE 0 END) AS total_deductions
-FROM "PAY_PERIOD" pp
-LEFT JOIN "PAY_ITEM" pi ON pp.id = pi.payroll_period_id
-LEFT JOIN "PAY_CONCEPT" pc ON pi.concept_id = pc.id
-GROUP BY pp.id, pp.employer_id, pp.year, pp.month;
+SELECT
+    p.id           AS period_id,
+    p.employer_id,
+    p.period_year,
+    p.period_month,
+    p.payment_date,
+    SUM(CASE WHEN c.kind = 'income' AND c.is_taxable THEN i.amount_clp ELSE 0 END)
+        AS taxable_income_clp,
+    SUM(CASE WHEN c.kind = 'income'   THEN i.amount_clp ELSE 0 END) AS gross_income_clp,
+    SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS total_discounts_clp,
+    SUM(CASE WHEN c.kind = 'income'   THEN i.amount_clp ELSE 0 END) -
+    SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS net_pay_clp
+FROM "PAY_PERIOD"  p
+JOIN "PAY_ITEM"    i ON i.period_id  = p.id
+JOIN "PAY_CONCEPT" c ON c.id = i.concept_id
+GROUP BY p.id;
 
-CREATE UNIQUE INDEX idx_mv_payroll_summary_period ON "PAY_MV_SUMARY"(payroll_period_id);
+CREATE UNIQUE INDEX idx_pay_mv_sumary_period ON "PAY_MV_SUMARY"(period_id);
 ```
 
 **Refresh:**
 ```sql
-REFRESH MATERIALIZED VIEW CONCURRENTLY "PAY_MV_SUMARY";
+REFRESH MATERIALIZED VIEW "PAY_MV_SUMARY";
 ```
+Run **without** `CONCURRENTLY` (it happens inside the same transaction as the
+`PAY_ITEM` writes that trigger it, in
+`payroll_repository_shared.py`, and `CONCURRENTLY` cannot run inside a transaction
+block) -- the unique index above exists for future flexibility, not because the
+current refresh call uses it.
 
 ---
 
 ## Entity Relationship Diagram
 
 ```
-[RAT_CURRENCY] 1---N [RAT_EXCH_RATE]
-
 [PAY_EMPLOYER] 1---N [PAY_PERIOD]
 
-[PAY_PERIOD] 1---N [PAY_PRD_HLTH]
-                  1---N [PAY_PRD_COMP]
-                  1---N [PAY_ITEM]
+[PAY_PENS_INST] 1---N [PAY_PENS_PLAN] 1---N [PAY_PERIOD] (pension_plan_id)
+[PAY_HLTH_INST] 1---N [PAY_HLTH_PLAN] N---N [PAY_PERIOD] (via PAY_PRD_HLTH)
+[PAY_COMP_PROV] 1---N [PAY_COMP_PLAN] N---N [PAY_PERIOD] (via PAY_PRD_COMP)
 
-[PAY_ITEM] N---1 [PAY_CONCEPT]
+[PAY_PERIOD] 1---N [PAY_ITEM] N---1 [PAY_CONCEPT]
 
-[PAY_PRD_HLTH] N---1 [PAY_HLTH_INST]
-
-[PAY_PRD_COMP] N---1 [PAY_COMP_PROV]
-                                   N---1 [PAY_COMP_PLAN]
-
-[PAY_PENS_INST] (referenced by application, not FK)
-[PAY_HLTH_INST] (referenced by PAY_PRD_HLTH)
+[RAT_CURRENCY] 1---N [RAT_EXCH_RATE]
 ```
 
 ## Data flow
 
 ```
-External Sources (Mindicador, BCCH, SII)
+External Sources (Mindicador, BCCh, SII)
   |
   v
-pf-rates (/refresh endpoints)
+pf-rates (/refresh endpoints + startup background sync)
   |
   v
 PostgreSQL (RAT_CURRENCY, RAT_EXCH_RATE, RAT_ECON_INDEX, RAT_TAX_BRCKT)
@@ -595,13 +744,13 @@ PostgreSQL (RAT_CURRENCY, RAT_EXCH_RATE, RAT_ECON_INDEX, RAT_TAX_BRCKT)
 pf-rates (GET endpoints)
   |
   v
-pf-payroll (HTTP client)
+pf-payroll (HTTP client, MarketDataRepository)
   |
   v
 PostgreSQL (payroll tables)
   |
   v
-pf-payroll (API + reports)
+pf-payroll (API + PDF reports)
 ```
 
 ## See also
