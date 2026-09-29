@@ -620,7 +620,7 @@ CREATE TABLE "PAY_CONCEPT" (
 );
 ```
 
-**Sample data** (`db/02_seed_base.sql`, the full/authoritative set -- 20 rows):
+**Sample data** (`db/02_seed_base.sql`, the full/authoritative set -- 21 rows):
 | code | kind | is_taxable |
 |---|---|---|
 | SALARY_BASE | income | true |
@@ -641,6 +641,7 @@ CREATE TABLE "PAY_CONCEPT" (
 | HOLIDAY_BONUS_ADVANCE | discount | false |
 | SALARY_ADVANCE | discount | false |
 | PRIOR_MONTH_LEAVE_ABSENCE_DISCOUNT | discount | false |
+| CCAF_LOAN | discount | false |
 | UNEMPLOYMENT_INSURANCE | discount | false |
 | INCOME_TAX | discount | false |
 

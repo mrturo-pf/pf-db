@@ -111,6 +111,7 @@ INSERT INTO "PAY_CONCEPT" (code, name, kind, is_taxable) VALUES
     ('HOLIDAY_BONUS_ADVANCE',                'Holiday Bonus Advance',                  'discount', FALSE),
     ('SALARY_ADVANCE',                       'Salary Advance',                         'discount', FALSE),
     ('PRIOR_MONTH_LEAVE_ABSENCE_DISCOUNT',   'Prior-Month Leave or Absence Discount',  'discount', FALSE),
+    ('CCAF_LOAN',                             'CCAF Social Credit / Loan Deduction',    'discount', FALSE),
     ('UNEMPLOYMENT_INSURANCE',               'Employee Unemployment Insurance',        'discount', FALSE),
     ('INCOME_TAX',                           'Monthly Income Tax Withholding',         'discount', FALSE)
 ON CONFLICT (code) DO UPDATE
@@ -126,7 +127,7 @@ DELETE FROM "PAY_CONCEPT" WHERE code NOT IN (
     'PRIOR_SALARY_DIFFERENCE', 'PENSION_BASE', 'PENSION_ADDITIONAL',
     'HEALTH_BASE', 'HEALTH_ADDITIONAL_UF', 'HEALTH_INSURANCE',
     'VACATION_BONUS_ADVANCE', 'HOLIDAY_BONUS_ADVANCE', 'SALARY_ADVANCE',
-    'PRIOR_MONTH_LEAVE_ABSENCE_DISCOUNT', 'UNEMPLOYMENT_INSURANCE',
+    'PRIOR_MONTH_LEAVE_ABSENCE_DISCOUNT', 'CCAF_LOAN', 'UNEMPLOYMENT_INSURANCE',
     'INCOME_TAX'
 );
 
