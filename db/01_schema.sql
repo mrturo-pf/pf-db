@@ -279,25 +279,38 @@ CREATE INDEX IF NOT EXISTS idx_payroll_items_concept_id ON "PAY_ITEM"(concept_id
 -- PDF payslip templates (employer-specific raw_label -> concept_code mapping).
 -- Replaces pf-payroll's former git-tracked JSON files -- see
 -- pf-payroll/docs/proposals/pdf-template-management-design-recommendation.md.
+-- employer_name is nullable: it is only the *literal override* string to show
+-- when either there's no employer_id to join against, or the PDF's printed
+-- name legitimately differs from PAY_EMPLOYER.name. When NULL, the
+-- application layer resolves the display name fresh from PAY_EMPLOYER via
+-- employer_id on every read -- never copied/duplicated into this column.
+-- The CHECK guarantees every row can always resolve *some* name one way or
+-- the other. See alembic/versions/0010_pdf_template_denormalization_fix.py.
 CREATE TABLE IF NOT EXISTS "PAY_PDF_TEMPLATE" (
     id                     BIGSERIAL     PRIMARY KEY,
     template_id            VARCHAR(80)   NOT NULL UNIQUE,
     employer_id            BIGINT        REFERENCES "PAY_EMPLOYER"(id),
-    employer_name          VARCHAR(120)  NOT NULL,
+    employer_name          VARCHAR(120),
     employer_match_pattern VARCHAR(500)  NOT NULL,
     version                INTEGER       NOT NULL DEFAULT 1 CHECK (version > 0),
     is_active              BOOLEAN       NOT NULL DEFAULT TRUE,
     created_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_pay_pdf_template_employer_ref
+        CHECK (employer_id IS NOT NULL OR employer_name IS NOT NULL)
 );
 
+-- kind is deliberately NOT a column here -- it would duplicate PAY_CONCEPT.kind
+-- (concept_code is already a FK into PAY_CONCEPT(code), which already owns
+-- `kind`) with no referential integrity tying the two copies together. The
+-- application layer always resolves kind from PAY_CONCEPT at read time; see
+-- the same migration referenced above.
 CREATE TABLE IF NOT EXISTS "PAY_PDF_TEMPLATE_FIELD" (
     id                BIGSERIAL     PRIMARY KEY,
     template_id       BIGINT        NOT NULL
         REFERENCES "PAY_PDF_TEMPLATE"(id) ON DELETE CASCADE,
     pdf_label_pattern VARCHAR(500)  NOT NULL,
     concept_code      VARCHAR(40)   NOT NULL REFERENCES "PAY_CONCEPT"(code),
-    kind              VARCHAR(20)   NOT NULL CHECK (kind IN ('income', 'discount')),
     confidence        NUMERIC(3,2)  NOT NULL DEFAULT 0.90 CHECK (confidence BETWEEN 0 AND 1)
 );
 

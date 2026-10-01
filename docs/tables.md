@@ -686,12 +686,14 @@ CREATE TABLE "PAY_PDF_TEMPLATE" (
     id                     BIGSERIAL     PRIMARY KEY,
     template_id            VARCHAR(80)   NOT NULL UNIQUE,
     employer_id            BIGINT        REFERENCES "PAY_EMPLOYER"(id),
-    employer_name          VARCHAR(120)  NOT NULL,
+    employer_name          VARCHAR(120),
     employer_match_pattern VARCHAR(500)  NOT NULL,
     version                INTEGER       NOT NULL DEFAULT 1 CHECK (version > 0),
     is_active              BOOLEAN       NOT NULL DEFAULT TRUE,
     created_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_pay_pdf_template_employer_ref
+        CHECK (employer_id IS NOT NULL OR employer_name IS NOT NULL)
 );
 
 CREATE INDEX idx_pay_pdf_template_is_active ON "PAY_PDF_TEMPLATE"(is_active);
@@ -702,6 +704,14 @@ CREATE INDEX idx_pay_pdf_template_is_active ON "PAY_PDF_TEMPLATE"(is_active);
   `employer_match_pattern` (a regex against the full raw PDF text) exactly as before,
   since the printed employer name on a real PDF does not necessarily match
   `PAY_EMPLOYER.name` verbatim.
+- `employer_name` is **nullable** (fixed in migration `0010` -- originally `NOT NULL`
+  and, in practice, an exact copy of `PAY_EMPLOYER.name`). It is now only a *literal
+  override* string, used when there's no `employer_id` to join against, or when the
+  name printed on a PDF legitimately differs from `PAY_EMPLOYER.name`. When NULL, the
+  application layer (pf-payroll) resolves the display name fresh from `PAY_EMPLOYER`
+  via `employer_id` on every read -- it is never copied into this column. The CHECK
+  constraint guarantees every row can always resolve *some* name one way or the
+  other.
 - `is_active` is the logical-delete flag, following the exact same precedent as
   `PAY_PENS_INST`/`PAY_HLTH_INST` above (flipped by `DELETE /payroll/templates/{id}`,
   never a row `DELETE`).
@@ -728,7 +738,6 @@ CREATE TABLE "PAY_PDF_TEMPLATE_FIELD" (
         REFERENCES "PAY_PDF_TEMPLATE"(id) ON DELETE CASCADE,
     pdf_label_pattern VARCHAR(500)  NOT NULL,
     concept_code      VARCHAR(40)   NOT NULL REFERENCES "PAY_CONCEPT"(code),
-    kind              VARCHAR(20)   NOT NULL CHECK (kind IN ('income', 'discount')),
     confidence        NUMERIC(3,2)  NOT NULL DEFAULT 0.90 CHECK (confidence BETWEEN 0 AND 1)
 );
 
@@ -740,6 +749,11 @@ CREATE INDEX idx_pay_pdf_template_field_template_id ON "PAY_PDF_TEMPLATE_FIELD"(
   produced a field that never resolves to a real concept, only discoverable at
   `pdf-preview` time against a real PDF. A write with an unknown `concept_code` now
   fails the FK constraint instead.
+- There is deliberately **no `kind` column** (removed in migration `0010` -- it used to
+  duplicate `PAY_CONCEPT.kind` with no referential integrity tying the two copies
+  together, letting a write set a `kind` that contradicted its own `concept_code`'s
+  real kind). The application layer (pf-payroll) always resolves `kind` from
+  `PAY_CONCEPT` via `concept_code` at read time instead.
 - Deleting a `PAY_PDF_TEMPLATE` row (never done by the API -- logical delete only)
   would cascade here; in practice this only ever fires if a row is removed by hand.
 

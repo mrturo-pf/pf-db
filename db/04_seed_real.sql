@@ -208,13 +208,17 @@ WHERE p.name = 'METLIFE'
 -- see pf-payroll/docs/proposals/pdf-template-management-design-plan.md).
 -- This keeps a fresh `make seed-real` bootstrapped with the real template
 -- with no manual POST /payroll/templates call required to reach parity.
+-- employer_name is intentionally NULL here (not 'WALMART-CHILE' duplicated
+-- from PAY_EMPLOYER.name) -- employer_id already resolves to that row, and
+-- the application layer derives the display name from it at read time. See
+-- alembic/versions/0010_pdf_template_denormalization_fix.py.
 INSERT INTO "PAY_PDF_TEMPLATE" (
     template_id, employer_id, employer_name, employer_match_pattern, version, is_active
 )
 SELECT
     'walmart-chile-v1',
     e.id,
-    'WALMART-CHILE',
+    NULL,
     '(?i)walmart-chile|walmart\s+chile',
     1,
     TRUE
@@ -240,31 +244,33 @@ WHERE template_id = (
     SELECT id FROM "PAY_PDF_TEMPLATE" WHERE template_id = 'walmart-chile-v1'
 );
 
+-- kind is not inserted here (no longer a column -- see the same migration):
+-- it is always resolved from PAY_CONCEPT.kind at read time, via concept_code.
 INSERT INTO "PAY_PDF_TEMPLATE_FIELD" (
-    template_id, pdf_label_pattern, concept_code, kind, confidence
+    template_id, pdf_label_pattern, concept_code, confidence
 )
-SELECT t.id, f.pdf_label_pattern, f.concept_code, f.kind, f.confidence
+SELECT t.id, f.pdf_label_pattern, f.concept_code, f.confidence
 FROM "PAY_PDF_TEMPLATE" t
 CROSS JOIN (VALUES
-    ('(?i)^SUELDO$',                                   'SALARY_BASE',                           'income',   0.90),
-    ('(?i)GRATIFICACION\s+LEGAL',                      'LEGAL_GRATUITY',                        'income',   0.90),
-    ('(?i)ASIGNACI[OÓ]N\s+TRAB\.?\s+H[IÍ]BRIDO',       'TELEWORK_REFUND',                       'income',   0.60),
-    ('(?i)APORTE\s+SEGURO\s+DE\s+SALUD',               'HEALTH_INSURANCE_EMPLOYER_CONTRIBUTION','income',   0.75),
-    ('(?i)^IMPUESTO$',                                 'INCOME_TAX',                            'discount', 0.90),
-    ('(?i)COT\.\s*SEG\.\s*CES\.',                      'UNEMPLOYMENT_INSURANCE',                'discount', 0.90),
-    ('(?i)ESENCIAL\s+LEGAL',                           'HEALTH_BASE',                           'discount', 0.60),
-    ('(?i)COMISI[OÓ]N\s+AFP',                          'PENSION_ADDITIONAL',                    'discount', 0.90),
-    ('(?i)FONDO\s+RETIRO\s+AFP',                       'PENSION_BASE',                          'discount', 0.60),
-    ('(?i)ESENCIAL\s+ADICIONAL',                       'HEALTH_ADDITIONAL_UF',                  'discount', 0.60),
-    ('(?i)SEGURO\s+(DENTAL|DE\s+SALUD|CATASTR[OÓ]FICO)','HEALTH_INSURANCE',                     'discount', 0.90),
-    ('(?i)^AGUINALDO',                                 'HOLIDAY_BONUS',                         'income',   0.85),
-    ('(?i)ANTICIPO\s+AGUINALDO',                       'HOLIDAY_BONUS_ADVANCE',                 'discount', 0.90),
-    ('(?i)BONO\s+POR\s+DISPONIBILIDAD',                'AVAILABILITY_BONUS',                    'income',   0.90),
-    ('(?i)REAJUSTE\s+GRATI\.?\s*MENSUAL',              'LEGAL_GRATUITY_ADJUSTMENT',             'income',   0.85),
-    ('(?i)INCENTIVO\s+VACACIONES',                     'VACATION_INCENTIVE',                    'income',   0.90),
-    ('(?i)ANTICIPO\s+BONO\s+VACACIONES',               'VACATION_BONUS_ADVANCE',                'discount', 0.90),
-    ('(?i)DSCTO\s+LICEN[\s-]*AUSEN\s+MES\s+ANT',       'PRIOR_MONTH_LEAVE_ABSENCE_DISCOUNT',    'discount', 0.85),
-    ('(?i)DIF\.?\s*SUELDO\s+MES\s+ANTERIOR',           'PRIOR_SALARY_DIFFERENCE',               'income',   0.85),
-    ('(?i)^CCAF\s+.*VIGENTE$',                         'CCAF_LOAN',                             'discount', 0.90)
-) AS f(pdf_label_pattern, concept_code, kind, confidence)
+    ('(?i)^SUELDO$',                                   'SALARY_BASE',                           0.90),
+    ('(?i)GRATIFICACION\s+LEGAL',                      'LEGAL_GRATUITY',                        0.90),
+    ('(?i)ASIGNACI[OÓ]N\s+TRAB\.?\s+H[IÍ]BRIDO',       'TELEWORK_REFUND',                       0.60),
+    ('(?i)APORTE\s+SEGURO\s+DE\s+SALUD',               'HEALTH_INSURANCE_EMPLOYER_CONTRIBUTION',0.75),
+    ('(?i)^IMPUESTO$',                                 'INCOME_TAX',                            0.90),
+    ('(?i)COT\.\s*SEG\.\s*CES\.',                      'UNEMPLOYMENT_INSURANCE',                0.90),
+    ('(?i)ESENCIAL\s+LEGAL',                           'HEALTH_BASE',                           0.60),
+    ('(?i)COMISI[OÓ]N\s+AFP',                          'PENSION_ADDITIONAL',                    0.90),
+    ('(?i)FONDO\s+RETIRO\s+AFP',                       'PENSION_BASE',                          0.60),
+    ('(?i)ESENCIAL\s+ADICIONAL',                       'HEALTH_ADDITIONAL_UF',                  0.60),
+    ('(?i)SEGURO\s+(DENTAL|DE\s+SALUD|CATASTR[OÓ]FICO)','HEALTH_INSURANCE',                     0.90),
+    ('(?i)^AGUINALDO',                                 'HOLIDAY_BONUS',                         0.85),
+    ('(?i)ANTICIPO\s+AGUINALDO',                       'HOLIDAY_BONUS_ADVANCE',                 0.90),
+    ('(?i)BONO\s+POR\s+DISPONIBILIDAD',                'AVAILABILITY_BONUS',                    0.90),
+    ('(?i)REAJUSTE\s+GRATI\.?\s*MENSUAL',              'LEGAL_GRATUITY_ADJUSTMENT',             0.85),
+    ('(?i)INCENTIVO\s+VACACIONES',                     'VACATION_INCENTIVE',                    0.90),
+    ('(?i)ANTICIPO\s+BONO\s+VACACIONES',               'VACATION_BONUS_ADVANCE',                0.90),
+    ('(?i)DSCTO\s+LICEN[\s-]*AUSEN\s+MES\s+ANT',       'PRIOR_MONTH_LEAVE_ABSENCE_DISCOUNT',    0.85),
+    ('(?i)DIF\.?\s*SUELDO\s+MES\s+ANTERIOR',           'PRIOR_SALARY_DIFFERENCE',               0.85),
+    ('(?i)^CCAF\s+.*VIGENTE$',                         'CCAF_LOAN',                             0.90)
+) AS f(pdf_label_pattern, concept_code, confidence)
 WHERE t.template_id = 'walmart-chile-v1';
