@@ -198,3 +198,73 @@ WHERE p.name = 'METLIFE'
         AND cp.name        = entry.name
         AND cp.valid_from  = entry.valid_from
   );
+
+-- ============================================================
+-- 7. PDF payslip templates
+-- ============================================================
+-- Migrates the one real template that used to live only as a git-tracked
+-- JSON file (pf-payroll's former
+-- infrastructure/pdf_import/templates/walmart-chile/v1.json, now deleted --
+-- see pf-payroll/docs/proposals/pdf-template-management-design-plan.md).
+-- This keeps a fresh `make seed-real` bootstrapped with the real template
+-- with no manual POST /payroll/templates call required to reach parity.
+INSERT INTO "PAY_PDF_TEMPLATE" (
+    template_id, employer_id, employer_name, employer_match_pattern, version, is_active
+)
+SELECT
+    'walmart-chile-v1',
+    e.id,
+    'WALMART-CHILE',
+    '(?i)walmart-chile|walmart\s+chile',
+    1,
+    TRUE
+FROM "PAY_EMPLOYER" e
+WHERE e.name = 'WALMART-CHILE'
+ON CONFLICT (template_id) DO UPDATE
+SET
+    employer_id             = EXCLUDED.employer_id,
+    employer_name           = EXCLUDED.employer_name,
+    employer_match_pattern  = EXCLUDED.employer_match_pattern,
+    version                 = EXCLUDED.version,
+    is_active               = EXCLUDED.is_active,
+    updated_at              = NOW();
+
+-- Fields are fully replaced (delete+insert) rather than individually
+-- upserted -- no natural per-field unique key exists, and this mirrors the
+-- same delete-then-reinsert convention pf-payroll's own import_rows()
+-- already uses for PAY_ITEM rows (see spreadsheet-export-design-plan.md's
+-- Correction 2). Safe here: this is seed data, re-run idempotently, not a
+-- live request path.
+DELETE FROM "PAY_PDF_TEMPLATE_FIELD"
+WHERE template_id = (
+    SELECT id FROM "PAY_PDF_TEMPLATE" WHERE template_id = 'walmart-chile-v1'
+);
+
+INSERT INTO "PAY_PDF_TEMPLATE_FIELD" (
+    template_id, pdf_label_pattern, concept_code, kind, confidence
+)
+SELECT t.id, f.pdf_label_pattern, f.concept_code, f.kind, f.confidence
+FROM "PAY_PDF_TEMPLATE" t
+CROSS JOIN (VALUES
+    ('(?i)^SUELDO$',                                   'SALARY_BASE',                           'income',   0.90),
+    ('(?i)GRATIFICACION\s+LEGAL',                      'LEGAL_GRATUITY',                        'income',   0.90),
+    ('(?i)ASIGNACI[OÓ]N\s+TRAB\.?\s+H[IÍ]BRIDO',       'TELEWORK_REFUND',                       'income',   0.60),
+    ('(?i)APORTE\s+SEGURO\s+DE\s+SALUD',               'HEALTH_INSURANCE_EMPLOYER_CONTRIBUTION','income',   0.75),
+    ('(?i)^IMPUESTO$',                                 'INCOME_TAX',                            'discount', 0.90),
+    ('(?i)COT\.\s*SEG\.\s*CES\.',                      'UNEMPLOYMENT_INSURANCE',                'discount', 0.90),
+    ('(?i)ESENCIAL\s+LEGAL',                           'HEALTH_BASE',                           'discount', 0.60),
+    ('(?i)COMISI[OÓ]N\s+AFP',                          'PENSION_ADDITIONAL',                    'discount', 0.90),
+    ('(?i)FONDO\s+RETIRO\s+AFP',                       'PENSION_BASE',                          'discount', 0.60),
+    ('(?i)ESENCIAL\s+ADICIONAL',                       'HEALTH_ADDITIONAL_UF',                  'discount', 0.60),
+    ('(?i)SEGURO\s+(DENTAL|DE\s+SALUD|CATASTR[OÓ]FICO)','HEALTH_INSURANCE',                     'discount', 0.90),
+    ('(?i)^AGUINALDO',                                 'HOLIDAY_BONUS',                         'income',   0.85),
+    ('(?i)ANTICIPO\s+AGUINALDO',                       'HOLIDAY_BONUS_ADVANCE',                 'discount', 0.90),
+    ('(?i)BONO\s+POR\s+DISPONIBILIDAD',                'AVAILABILITY_BONUS',                    'income',   0.90),
+    ('(?i)REAJUSTE\s+GRATI\.?\s*MENSUAL',              'LEGAL_GRATUITY_ADJUSTMENT',             'income',   0.85),
+    ('(?i)INCENTIVO\s+VACACIONES',                     'VACATION_INCENTIVE',                    'income',   0.90),
+    ('(?i)ANTICIPO\s+BONO\s+VACACIONES',               'VACATION_BONUS_ADVANCE',                'discount', 0.90),
+    ('(?i)DSCTO\s+LICEN[\s-]*AUSEN\s+MES\s+ANT',       'PRIOR_MONTH_LEAVE_ABSENCE_DISCOUNT',    'discount', 0.85),
+    ('(?i)DIF\.?\s*SUELDO\s+MES\s+ANTERIOR',           'PRIOR_SALARY_DIFFERENCE',               'income',   0.85),
+    ('(?i)^CCAF\s+.*VIGENTE$',                         'CCAF_LOAN',                             'discount', 0.90)
+) AS f(pdf_label_pattern, concept_code, kind, confidence)
+WHERE t.template_id = 'walmart-chile-v1';

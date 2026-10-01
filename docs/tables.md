@@ -1,6 +1,6 @@
 # Tables Reference
 
-Complete documentation of the 18 tables managed by pf-db, including ownership, relationships, and connection details.
+Complete documentation of the 20 tables managed by pf-db, including ownership, relationships, and connection details.
 
 **Source of truth:** every schema block below is copied verbatim from
 [`db/01_schema.sql`](../db/01_schema.sql). If this file and `01_schema.sql` ever
@@ -9,9 +9,9 @@ around.
 
 ## Overview
 
-pf-db manages **18 tables** across two domains:
+pf-db manages **20 tables** across two domains:
 - **Financial rates:** 5 tables (owned by pf-rates)
-- **Payroll:** 13 tables + 1 materialized view (owned by pf-payroll)
+- **Payroll:** 15 tables + 1 materialized view (owned by pf-payroll)
 
 Payroll models a **single person's own payroll across one or more employers** over
 time, not a multi-employee company payroll system -- `PAY_PERIOD` has no
@@ -24,7 +24,7 @@ Ownership means: only the microservices that own a domain **write** to those tab
 | Tables | Domain | Owner | Access pattern |
 |---|---|---|---|
 | `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT`, `RAT_EXPORT_JOB` | Financial rates | [pf-rates](../pf-rates) | pf-payroll reads via HTTP API (never direct SQL) |
-| All others (13 tables + 1 view) | Payroll | [pf-payroll](../pf-payroll) | Exclusive write access |
+| All others (15 tables + 1 view) | Payroll | [pf-payroll](../pf-payroll) | Exclusive write access |
 
 ## Connection string
 
@@ -225,7 +225,7 @@ the raw counts.
 
 ---
 
-## Payroll tables (13 tables + 1 view)
+## Payroll tables (15 tables + 1 view)
 
 ### PAY_PENS_INST
 
@@ -670,7 +670,80 @@ CREATE INDEX idx_payroll_items_period_id  ON "PAY_ITEM"(period_id);
 CREATE INDEX idx_payroll_items_concept_id ON "PAY_ITEM"(concept_id);
 ```
 
-**No seed file** -- created by the same import flows as `PAY_PERIOD`.
+### PAY_PDF_TEMPLATE
+
+Employer-specific payroll PDF payslip templates (raw-label -> `concept_code` mapping
+rules), managed via `pf-payroll`'s `/payroll/templates` CRUD endpoints. Replaces the
+former git-tracked JSON files under `pf-payroll/infrastructure/pdf_import/templates/`
+-- see `pf-payroll/docs/proposals/pdf-template-management-design-recommendation.md`
+and `-design-plan.md`.
+
+**Owner:** pf-payroll
+
+**Schema:**
+```sql
+CREATE TABLE "PAY_PDF_TEMPLATE" (
+    id                     BIGSERIAL     PRIMARY KEY,
+    template_id            VARCHAR(80)   NOT NULL UNIQUE,
+    employer_id            BIGINT        REFERENCES "PAY_EMPLOYER"(id),
+    employer_name          VARCHAR(120)  NOT NULL,
+    employer_match_pattern VARCHAR(500)  NOT NULL,
+    version                INTEGER       NOT NULL DEFAULT 1 CHECK (version > 0),
+    is_active              BOOLEAN       NOT NULL DEFAULT TRUE,
+    created_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_pay_pdf_template_is_active ON "PAY_PDF_TEMPLATE"(is_active);
+```
+
+- `employer_id` is a **nullable, admin-only** FK -- never read by the actual
+  PDF-matching code (`select_template()` in pf-payroll), which keeps using
+  `employer_match_pattern` (a regex against the full raw PDF text) exactly as before,
+  since the printed employer name on a real PDF does not necessarily match
+  `PAY_EMPLOYER.name` verbatim.
+- `is_active` is the logical-delete flag, following the exact same precedent as
+  `PAY_PENS_INST`/`PAY_HLTH_INST` above (flipped by `DELETE /payroll/templates/{id}`,
+  never a row `DELETE`).
+- `template_id` (e.g. `"walmart-chile-v1"`) is the external identifier used by the API
+  and by `PdfImportPreviewResponse.template_id` -- the internal numeric `id` never
+  leaves pf-payroll.
+
+**Seed:** `db/04_seed_real.sql` (the real `walmart-chile-v1` template, migrated from the
+former JSON file).
+
+---
+
+### PAY_PDF_TEMPLATE_FIELD
+
+One row per label-matching rule within a `PAY_PDF_TEMPLATE` (1:N).
+
+**Owner:** pf-payroll
+
+**Schema:**
+```sql
+CREATE TABLE "PAY_PDF_TEMPLATE_FIELD" (
+    id                BIGSERIAL     PRIMARY KEY,
+    template_id       BIGINT        NOT NULL
+        REFERENCES "PAY_PDF_TEMPLATE"(id) ON DELETE CASCADE,
+    pdf_label_pattern VARCHAR(500)  NOT NULL,
+    concept_code      VARCHAR(40)   NOT NULL REFERENCES "PAY_CONCEPT"(code),
+    kind              VARCHAR(20)   NOT NULL CHECK (kind IN ('income', 'discount')),
+    confidence        NUMERIC(3,2)  NOT NULL DEFAULT 0.90 CHECK (confidence BETWEEN 0 AND 1)
+);
+
+CREATE INDEX idx_pay_pdf_template_field_template_id ON "PAY_PDF_TEMPLATE_FIELD"(template_id);
+```
+
+- `concept_code` carries a real FK to `PAY_CONCEPT(code)` -- an integrity upgrade the
+  old hand-edited JSON format could not offer: a typo'd `concept_code` there silently
+  produced a field that never resolves to a real concept, only discoverable at
+  `pdf-preview` time against a real PDF. A write with an unknown `concept_code` now
+  fails the FK constraint instead.
+- Deleting a `PAY_PDF_TEMPLATE` row (never done by the API -- logical delete only)
+  would cascade here; in practice this only ever fires if a row is removed by hand.
+
+**Seed:** `db/04_seed_real.sql` (the 20 fields of the real `walmart-chile-v1` template).
 
 ---
 
@@ -726,6 +799,8 @@ current refresh call uses it.
 [PAY_COMP_PROV] 1---N [PAY_COMP_PLAN] N---N [PAY_PERIOD] (via PAY_PRD_COMP)
 
 [PAY_PERIOD] 1---N [PAY_ITEM] N---1 [PAY_CONCEPT]
+
+[PAY_EMPLOYER] 1---N [PAY_PDF_TEMPLATE] 1---N [PAY_PDF_TEMPLATE_FIELD] N---1 [PAY_CONCEPT]
 
 [RAT_CURRENCY] 1---N [RAT_EXCH_RATE]
 ```

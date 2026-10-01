@@ -276,6 +276,35 @@ CREATE TABLE IF NOT EXISTS "PAY_ITEM" (
 CREATE INDEX IF NOT EXISTS idx_payroll_items_period_id  ON "PAY_ITEM"(period_id);
 CREATE INDEX IF NOT EXISTS idx_payroll_items_concept_id ON "PAY_ITEM"(concept_id);
 
+-- PDF payslip templates (employer-specific raw_label -> concept_code mapping).
+-- Replaces pf-payroll's former git-tracked JSON files -- see
+-- pf-payroll/docs/proposals/pdf-template-management-design-recommendation.md.
+CREATE TABLE IF NOT EXISTS "PAY_PDF_TEMPLATE" (
+    id                     BIGSERIAL     PRIMARY KEY,
+    template_id            VARCHAR(80)   NOT NULL UNIQUE,
+    employer_id            BIGINT        REFERENCES "PAY_EMPLOYER"(id),
+    employer_name          VARCHAR(120)  NOT NULL,
+    employer_match_pattern VARCHAR(500)  NOT NULL,
+    version                INTEGER       NOT NULL DEFAULT 1 CHECK (version > 0),
+    is_active              BOOLEAN       NOT NULL DEFAULT TRUE,
+    created_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "PAY_PDF_TEMPLATE_FIELD" (
+    id                BIGSERIAL     PRIMARY KEY,
+    template_id       BIGINT        NOT NULL
+        REFERENCES "PAY_PDF_TEMPLATE"(id) ON DELETE CASCADE,
+    pdf_label_pattern VARCHAR(500)  NOT NULL,
+    concept_code      VARCHAR(40)   NOT NULL REFERENCES "PAY_CONCEPT"(code),
+    kind              VARCHAR(20)   NOT NULL CHECK (kind IN ('income', 'discount')),
+    confidence        NUMERIC(3,2)  NOT NULL DEFAULT 0.90 CHECK (confidence BETWEEN 0 AND 1)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_field_template_id
+    ON "PAY_PDF_TEMPLATE_FIELD"(template_id);
+CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_is_active ON "PAY_PDF_TEMPLATE"(is_active);
+
 -- ============================================================
 -- 4. Analytics
 -- ============================================================
