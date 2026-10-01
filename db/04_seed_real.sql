@@ -244,12 +244,15 @@ WHERE template_id = (
     SELECT id FROM "PAY_PDF_TEMPLATE" WHERE template_id = 'walmart-chile-v1'
 );
 
--- kind is not inserted here (no longer a column -- see the same migration):
--- it is always resolved from PAY_CONCEPT.kind at read time, via concept_code.
+-- kind is not inserted here (no longer a column -- see migration 0010): it
+-- is always resolved from PAY_CONCEPT.kind at read time, via concept_id.
+-- concept_id (not concept_code) since migration 0011 -- the VALUES literal
+-- below still spells out the human-readable code; the JOIN to PAY_CONCEPT
+-- resolves it to the real surrogate id the column actually stores.
 INSERT INTO "PAY_PDF_TEMPLATE_FIELD" (
-    template_id, pdf_label_pattern, concept_code, confidence
+    template_id, pdf_label_pattern, concept_id, confidence
 )
-SELECT t.id, f.pdf_label_pattern, f.concept_code, f.confidence
+SELECT t.id, f.pdf_label_pattern, c.id, f.confidence
 FROM "PAY_PDF_TEMPLATE" t
 CROSS JOIN (VALUES
     ('(?i)^SUELDO$',                                   'SALARY_BASE',                           0.90),
@@ -273,4 +276,5 @@ CROSS JOIN (VALUES
     ('(?i)DIF\.?\s*SUELDO\s+MES\s+ANTERIOR',           'PRIOR_SALARY_DIFFERENCE',               0.85),
     ('(?i)^CCAF\s+.*VIGENTE$',                         'CCAF_LOAN',                             0.90)
 ) AS f(pdf_label_pattern, concept_code, confidence)
+JOIN "PAY_CONCEPT" c ON c.code = f.concept_code
 WHERE t.template_id = 'walmart-chile-v1';

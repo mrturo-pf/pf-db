@@ -737,23 +737,33 @@ CREATE TABLE "PAY_PDF_TEMPLATE_FIELD" (
     template_id       BIGINT        NOT NULL
         REFERENCES "PAY_PDF_TEMPLATE"(id) ON DELETE CASCADE,
     pdf_label_pattern VARCHAR(500)  NOT NULL,
-    concept_code      VARCHAR(40)   NOT NULL REFERENCES "PAY_CONCEPT"(code),
+    concept_id        BIGINT        NOT NULL REFERENCES "PAY_CONCEPT"(id),
     confidence        NUMERIC(3,2)  NOT NULL DEFAULT 0.90 CHECK (confidence BETWEEN 0 AND 1)
 );
 
+CREATE INDEX idx_pay_pdf_template_field_concept_id ON "PAY_PDF_TEMPLATE_FIELD"(concept_id);
 CREATE INDEX idx_pay_pdf_template_field_template_id ON "PAY_PDF_TEMPLATE_FIELD"(template_id);
 ```
 
-- `concept_code` carries a real FK to `PAY_CONCEPT(code)` -- an integrity upgrade the
-  old hand-edited JSON format could not offer: a typo'd `concept_code` there silently
-  produced a field that never resolves to a real concept, only discoverable at
-  `pdf-preview` time against a real PDF. A write with an unknown `concept_code` now
-  fails the FK constraint instead.
+- `concept_id` carries a real FK to `PAY_CONCEPT(id)` -- an integrity upgrade the
+  old hand-edited JSON format could not offer: a typo'd concept reference there
+  silently produced a field that never resolves to a real concept, only
+  discoverable at `pdf-preview` time against a real PDF. A write with an unknown
+  `concept_code` is rejected by the application layer with a 400 before it ever
+  reaches this FK (see `interfaces/api/routes/pdf_templates.py`'s
+  `_resolve_field_dtos()`). The column is `concept_id`, not `concept_code`, since
+  migration `0011` -- every other table referencing `PAY_CONCEPT` already does so
+  by its surrogate id (`PAY_ITEM.concept_id`); the original `concept_code VARCHAR(40)
+  REFERENCES PAY_CONCEPT(code)` from migration `0009` was the one inconsistent
+  outlier, not a deliberate choice. `concept_code` remains the business-facing
+  identifier at the application layer (requests, responses, `CONCEPT_MAP`, the
+  PDF-matching engine) -- only this storage column changed, resolved at the
+  repository boundary.
 - There is deliberately **no `kind` column** (removed in migration `0010` -- it used to
   duplicate `PAY_CONCEPT.kind` with no referential integrity tying the two copies
-  together, letting a write set a `kind` that contradicted its own `concept_code`'s
+  together, letting a write set a `kind` that contradicted its own concept's
   real kind). The application layer (pf-payroll) always resolves `kind` from
-  `PAY_CONCEPT` via `concept_code` at read time instead.
+  `PAY_CONCEPT` via `concept_id` at read time instead.
 - Deleting a `PAY_PDF_TEMPLATE` row (never done by the API -- logical delete only)
   would cascade here; in practice this only ever fires if a row is removed by hand.
 

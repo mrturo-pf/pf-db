@@ -301,19 +301,26 @@ CREATE TABLE IF NOT EXISTS "PAY_PDF_TEMPLATE" (
 );
 
 -- kind is deliberately NOT a column here -- it would duplicate PAY_CONCEPT.kind
--- (concept_code is already a FK into PAY_CONCEPT(code), which already owns
--- `kind`) with no referential integrity tying the two copies together. The
+-- with no referential integrity tying the two copies together. The
 -- application layer always resolves kind from PAY_CONCEPT at read time; see
--- the same migration referenced above.
+-- migration 0010.
+-- concept_id (not concept_code): every other table referencing PAY_CONCEPT
+-- does so by its surrogate id (see PAY_ITEM.concept_id above) -- concept_code
+-- was an unintentional inconsistency, fixed in migration 0011. concept_code
+-- remains the business-facing identifier at the application layer (requests,
+-- responses, CONCEPT_MAP, the PDF-matching engine); only this storage column
+-- changed, resolved at the repository boundary.
 CREATE TABLE IF NOT EXISTS "PAY_PDF_TEMPLATE_FIELD" (
     id                BIGSERIAL     PRIMARY KEY,
     template_id       BIGINT        NOT NULL
         REFERENCES "PAY_PDF_TEMPLATE"(id) ON DELETE CASCADE,
     pdf_label_pattern VARCHAR(500)  NOT NULL,
-    concept_code      VARCHAR(40)   NOT NULL REFERENCES "PAY_CONCEPT"(code),
+    concept_id        BIGINT        NOT NULL REFERENCES "PAY_CONCEPT"(id),
     confidence        NUMERIC(3,2)  NOT NULL DEFAULT 0.90 CHECK (confidence BETWEEN 0 AND 1)
 );
 
+CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_field_concept_id
+    ON "PAY_PDF_TEMPLATE_FIELD"(concept_id);
 CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_field_template_id
     ON "PAY_PDF_TEMPLATE_FIELD"(template_id);
 CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_is_active ON "PAY_PDF_TEMPLATE"(is_active);
