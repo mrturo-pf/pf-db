@@ -208,17 +208,15 @@ WHERE p.name = 'METLIFE'
 -- see pf-payroll/docs/proposals/pdf-template-management-design-plan.md).
 -- This keeps a fresh `make seed-real` bootstrapped with the real template
 -- with no manual POST /payroll/templates call required to reach parity.
--- employer_name is intentionally NULL here (not 'WALMART-CHILE' duplicated
--- from PAY_EMPLOYER.name) -- employer_id already resolves to that row, and
--- the application layer derives the display name from it at read time. See
--- alembic/versions/0010_pdf_template_denormalization_fix.py.
+-- No employer_name column (removed in migration 0012) -- employer_id is
+-- required and always resolves the display name from PAY_EMPLOYER.name at
+-- read time. See alembic/versions/0012_pdf_template_employer_id_required.py.
 INSERT INTO "PAY_PDF_TEMPLATE" (
-    template_id, employer_id, employer_name, employer_match_pattern, version, is_active
+    template_id, employer_id, employer_match_pattern, version, is_active
 )
 SELECT
     'walmart-chile-v1',
     e.id,
-    NULL,
     '(?i)walmart-chile|walmart\s+chile',
     1,
     TRUE
@@ -227,7 +225,6 @@ WHERE e.name = 'WALMART-CHILE'
 ON CONFLICT (template_id) DO UPDATE
 SET
     employer_id             = EXCLUDED.employer_id,
-    employer_name           = EXCLUDED.employer_name,
     employer_match_pattern  = EXCLUDED.employer_match_pattern,
     version                 = EXCLUDED.version,
     is_active               = EXCLUDED.is_active,

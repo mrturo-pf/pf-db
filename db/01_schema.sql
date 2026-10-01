@@ -279,25 +279,22 @@ CREATE INDEX IF NOT EXISTS idx_payroll_items_concept_id ON "PAY_ITEM"(concept_id
 -- PDF payslip templates (employer-specific raw_label -> concept_code mapping).
 -- Replaces pf-payroll's former git-tracked JSON files -- see
 -- pf-payroll/docs/proposals/pdf-template-management-design-recommendation.md.
--- employer_name is nullable: it is only the *literal override* string to show
--- when either there's no employer_id to join against, or the PDF's printed
--- name legitimately differs from PAY_EMPLOYER.name. When NULL, the
--- application layer resolves the display name fresh from PAY_EMPLOYER via
--- employer_id on every read -- never copied/duplicated into this column.
--- The CHECK guarantees every row can always resolve *some* name one way or
--- the other. See alembic/versions/0010_pdf_template_denormalization_fix.py.
+-- employer_id is required: a template may only be created for an employer
+-- that already has a PAY_EMPLOYER row (i.e. after its first payroll import
+-- has run at least once). There is deliberately no employer_name column --
+-- it used to be a literal-override fallback for when employer_id was NULL,
+-- but that case can no longer happen. The display name is always resolved
+-- fresh from PAY_EMPLOYER.name via employer_id at read time, never copied
+-- into this table. See alembic/versions/0012_pdf_template_employer_id_required.py.
 CREATE TABLE IF NOT EXISTS "PAY_PDF_TEMPLATE" (
     id                     BIGSERIAL     PRIMARY KEY,
     template_id            VARCHAR(80)   NOT NULL UNIQUE,
-    employer_id            BIGINT        REFERENCES "PAY_EMPLOYER"(id),
-    employer_name          VARCHAR(120),
+    employer_id            BIGINT        NOT NULL REFERENCES "PAY_EMPLOYER"(id),
     employer_match_pattern VARCHAR(500)  NOT NULL,
     version                INTEGER       NOT NULL DEFAULT 1 CHECK (version > 0),
     is_active              BOOLEAN       NOT NULL DEFAULT TRUE,
     created_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    CONSTRAINT chk_pay_pdf_template_employer_ref
-        CHECK (employer_id IS NOT NULL OR employer_name IS NOT NULL)
+    updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 -- kind is deliberately NOT a column here -- it would duplicate PAY_CONCEPT.kind

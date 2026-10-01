@@ -685,33 +685,31 @@ and `-design-plan.md`.
 CREATE TABLE "PAY_PDF_TEMPLATE" (
     id                     BIGSERIAL     PRIMARY KEY,
     template_id            VARCHAR(80)   NOT NULL UNIQUE,
-    employer_id            BIGINT        REFERENCES "PAY_EMPLOYER"(id),
-    employer_name          VARCHAR(120),
+    employer_id            BIGINT        NOT NULL REFERENCES "PAY_EMPLOYER"(id),
     employer_match_pattern VARCHAR(500)  NOT NULL,
     version                INTEGER       NOT NULL DEFAULT 1 CHECK (version > 0),
     is_active              BOOLEAN       NOT NULL DEFAULT TRUE,
     created_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    CONSTRAINT chk_pay_pdf_template_employer_ref
-        CHECK (employer_id IS NOT NULL OR employer_name IS NOT NULL)
+    updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_pay_pdf_template_is_active ON "PAY_PDF_TEMPLATE"(is_active);
 ```
 
-- `employer_id` is a **nullable, admin-only** FK -- never read by the actual
-  PDF-matching code (`select_template()` in pf-payroll), which keeps using
-  `employer_match_pattern` (a regex against the full raw PDF text) exactly as before,
-  since the printed employer name on a real PDF does not necessarily match
+- `employer_id` is **required** (`NOT NULL`, since migration `0012`) -- a template
+  may only be created for an employer that already has a `PAY_EMPLOYER` row (i.e.
+  after its first payroll import has run at least once; there is no standalone
+  endpoint to create a `PAY_EMPLOYER` row ahead of that). It is still never read by
+  the actual PDF-matching code (`select_template()` in pf-payroll), which keeps
+  using `employer_match_pattern` (a regex against the full raw PDF text) exactly as
+  before, since the printed employer name on a real PDF does not necessarily match
   `PAY_EMPLOYER.name` verbatim.
-- `employer_name` is **nullable** (fixed in migration `0010` -- originally `NOT NULL`
-  and, in practice, an exact copy of `PAY_EMPLOYER.name`). It is now only a *literal
-  override* string, used when there's no `employer_id` to join against, or when the
-  name printed on a PDF legitimately differs from `PAY_EMPLOYER.name`. When NULL, the
-  application layer (pf-payroll) resolves the display name fresh from `PAY_EMPLOYER`
-  via `employer_id` on every read -- it is never copied into this column. The CHECK
-  constraint guarantees every row can always resolve *some* name one way or the
-  other.
+- There is deliberately **no `employer_name` column** (removed in migration `0012` --
+  it briefly existed as nullable, see migration `0010`, as a literal-override fallback
+  for when `employer_id` was allowed to be `NULL`; now that `employer_id` is always
+  required, that fallback case can no longer happen). The application layer
+  (pf-payroll) always resolves the display name fresh from `PAY_EMPLOYER.name` via
+  `employer_id` at read time -- never copied into this table.
 - `is_active` is the logical-delete flag, following the exact same precedent as
   `PAY_PENS_INST`/`PAY_HLTH_INST` above (flipped by `DELETE /payroll/templates/{id}`,
   never a row `DELETE`).
