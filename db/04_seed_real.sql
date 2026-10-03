@@ -83,7 +83,6 @@ INSERT INTO "PAY_EMPLOYER" (
     name,
     tax_id,
     country_code,
-    started_at,
     payment_date_rule,
     payment_month_offset,
     payment_day_of_month,
@@ -99,7 +98,6 @@ INSERT INTO "PAY_EMPLOYER" (
         'DALT-CONSULTORES',
         '52.005.257-7',
         'CL',
-        DATE '2016-07-18',
         'last_business_day_of_month',
         0,
         NULL,
@@ -115,7 +113,6 @@ INSERT INTO "PAY_EMPLOYER" (
         'CLINICA-ALEMANA',
         '77.413.290-2',
         'CL',
-        DATE '2018-04-03',
         'calendar_days_before_end_of_month',
         0,
         NULL,
@@ -131,7 +128,6 @@ INSERT INTO "PAY_EMPLOYER" (
         'WALMART-CHILE',
         '76.042.014-K',
         'CL',
-        DATE '2024-11-18',
         'last_business_day_of_month',
         0,
         NULL,
@@ -147,7 +143,6 @@ ON CONFLICT (name) DO UPDATE
 SET
     tax_id = EXCLUDED.tax_id,
     country_code = EXCLUDED.country_code,
-    started_at = EXCLUDED.started_at,
     payment_date_rule = EXCLUDED.payment_date_rule,
     payment_month_offset = EXCLUDED.payment_month_offset,
     payment_day_of_month = EXCLUDED.payment_day_of_month,
@@ -155,6 +150,22 @@ SET
     payment_calendar_day_offset = EXCLUDED.payment_calendar_day_offset,
     payment_effective_on_processing_next_day = EXCLUDED.payment_effective_on_processing_next_day,
     payment_fixed_day_roll = EXCLUDED.payment_fixed_day_roll;
+
+-- Employment history is stored separately from employer configuration.
+INSERT INTO "PAY_EMP_CONT" (employer_id, started_at, ended_at, is_indefinite, position)
+SELECT e.id, entry.started_at, NULL, TRUE, NULL
+FROM "PAY_EMPLOYER" e
+JOIN (VALUES
+    ('DALT-CONSULTORES', DATE '2016-07-18'),
+    ('CLINICA-ALEMANA', DATE '2018-04-03'),
+    ('WALMART-CHILE', DATE '2024-11-18')
+) AS entry(name, started_at) ON entry.name = e.name
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM "PAY_EMP_CONT" c
+    WHERE c.employer_id = e.id
+      AND c.started_at = entry.started_at
+);
 
 -- ============================================================
 -- 5. Complementary insurance providers
