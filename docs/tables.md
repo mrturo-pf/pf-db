@@ -22,7 +22,7 @@ employee-level column at all, only `employer_id` + `period_year`/`period_month`.
 Ownership means: only the microservices that own a domain **write** to those tables. Any microservice may **read** any table.
 
 | Tables | Domain | Owner | Access pattern |
-|---|---|---|---|
+|---|---|---|
 | `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT`, `RAT_EXPORT_JOB` | Financial rates | [pf-rates](../pf-rates) | pf-payroll reads via HTTP API (never direct SQL) |
 | All others (15 tables + 1 view) | Payroll | [pf-payroll](../pf-payroll) | Exclusive write access |
 
@@ -482,8 +482,6 @@ CREATE TABLE "PAY_EMPLOYER" (
     name                                     VARCHAR(120)               NOT NULL UNIQUE,
     tax_id                                   VARCHAR(32),
     country_code                             CHAR(2)                    NOT NULL DEFAULT 'CL',
-    started_at                               DATE                       NOT NULL,
-    ended_at                                 DATE,
     first_increase_period_year               SMALLINT
         CHECK (first_increase_period_year BETWEEN 1990 AND 2100),
     first_increase_period_month              SMALLINT
@@ -513,13 +511,46 @@ and `employer_fixed_day_roll` is `ENUM ('previous_business_day', 'next_business_
 **Sample data** (`db/04_seed_real.sql`, the only seeded employers -- others get
 created ad hoc through the import flows):
 
-| name | tax_id | started_at | payment_date_rule |
+| name | tax_id | payment_date_rule |
 |---|---|---|---|
 | DALT-CONSULTORES | 52.005.257-7 | 2016-07-18 | last_business_day_of_month |
 | CLINICA-ALEMANA | 77.413.290-2 | 2018-04-03 | calendar_days_before_end_of_month |
 | WALMART-CHILE | 76.042.014-K | 2024-11-18 | last_business_day_of_month |
 
 **Seed:** `db/04_seed_real.sql`
+
+---
+
+### PAY_EMP_CONT
+
+Employment contract intervals used to resolve the contract applicable to a payroll
+period. `is_indefinite` is explicit and remains true for an indefinite contract even
+after its employment relationship ends and `ended_at` is populated. Contracts for the
+same employer may not overlap.
+
+**Owner:** pf-payroll
+
+**Schema:**
+```sql
+CREATE TABLE "PAY_EMP_CONT" (
+    id            BIGSERIAL PRIMARY KEY,
+    employer_id   BIGINT NOT NULL REFERENCES "PAY_EMPLOYER"(id),
+    started_at    DATE NOT NULL,
+    ended_at      DATE,
+    is_indefinite BOOLEAN NOT NULL,
+    position      VARCHAR(120),
+    CHECK (ended_at IS NULL OR ended_at >= started_at),
+    CHECK (is_indefinite OR ended_at IS NOT NULL)
+);
+```
+
+The effective contract is selected by `employer_id` and `PAY_PERIOD.payment_date`.
+`position` is nullable because the legacy schema contains no historical position data.
+`PAY_EMPLOYER.started_at`/`ended_at` are legacy lifecycle fields during the expand
+migration and are scheduled to be removed after all application reads use this table.
+
+**Seed:** no static seed; historical rows are backfilled by the employment-contract
+migration.
 
 ---
 
@@ -539,8 +570,6 @@ CREATE TABLE "PAY_PERIOD" (
     period_month             SMALLINT                 NOT NULL,
     payment_date             DATE                     NOT NULL,
     worked_days              SMALLINT                 NOT NULL DEFAULT 30,
-    status                   payroll_status           NOT NULL DEFAULT 'projected',
-    employment_contract_kind employment_contract_kind NOT NULL DEFAULT 'indefinite',
     declared_net_pay_clp     NUMERIC(18,2),
     expected_net_pay_clp     NUMERIC(18,2),
     net_pay_difference_clp   NUMERIC(18,2),
@@ -549,8 +578,8 @@ CREATE TABLE "PAY_PERIOD" (
 );
 ```
 
-Where `payroll_status` is `ENUM ('projected', 'actual', 'reviewed')` and
-`employment_contract_kind` is `ENUM ('indefinite', 'fixed_term')`.
+**The review workflow and period-level employment contract kind are not persisted.
+Contract selection is resolved through `PAY_EMP_CONT` by employer and payment date.**
 
 **No seed file** -- created by `POST /payroll/import/spreadsheet`,
 `POST /payroll/import/json`, or the CLI's `import-payroll` command.

@@ -19,9 +19,7 @@
 --   4. Analytics           (payroll domain)
 -- ============================================================
 
--- ============================================================
--- 1. Financial rates
--- ============================================================
+CREATE EXTENSION IF NOT EXISTS btree_gist;
 CREATE TABLE IF NOT EXISTS "RAT_CURRENCY" (
     code      CHAR(3)     PRIMARY KEY,
     name      VARCHAR(60) NOT NULL,
@@ -174,16 +172,6 @@ CREATE TABLE IF NOT EXISTS "PAY_COMP_PLAN" (
 -- 3. Payroll core
 -- ============================================================
 DO $$ BEGIN
-    CREATE TYPE payroll_status AS ENUM ('projected', 'actual', 'reviewed');
-EXCEPTION WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-    CREATE TYPE employment_contract_kind AS ENUM ('indefinite', 'fixed_term');
-EXCEPTION WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
     CREATE TYPE employer_payment_date_rule AS ENUM (
         'last_business_day_of_month',
         'fixed_day_of_month',
@@ -203,8 +191,6 @@ CREATE TABLE IF NOT EXISTS "PAY_EMPLOYER" (
     name                                     VARCHAR(120)               NOT NULL UNIQUE,
     tax_id                                   VARCHAR(32),
     country_code                             CHAR(2)                    NOT NULL DEFAULT 'CL',
-    started_at                               DATE                       NOT NULL,
-    ended_at                                 DATE,
     first_increase_period_year               SMALLINT
         CHECK (first_increase_period_year BETWEEN 1990 AND 2100),
     first_increase_period_month              SMALLINT
@@ -226,6 +212,27 @@ CREATE TABLE IF NOT EXISTS "PAY_EMPLOYER" (
         DEFAULT 'previous_business_day'
 );
 
+CREATE TABLE IF NOT EXISTS "PAY_EMP_CONT" (
+    id            BIGSERIAL PRIMARY KEY,
+    employer_id   BIGINT NOT NULL REFERENCES "PAY_EMPLOYER"(id),
+    started_at    DATE NOT NULL,
+    ended_at      DATE,
+    is_indefinite BOOLEAN NOT NULL,
+    position      VARCHAR(120),
+    CHECK (ended_at IS NULL OR ended_at >= started_at),
+    CHECK (is_indefinite OR ended_at IS NOT NULL),
+    EXCLUDE USING gist (
+        employer_id WITH =,
+        daterange(
+            started_at,
+            COALESCE(ended_at, 'infinity'::date),
+            '[]'
+        ) WITH &&
+    )
+);
+
+CREATE INDEX IF NOT EXISTS ix_pay_emp_cont_lookup
+    ON "PAY_EMP_CONT" (employer_id, started_at, ended_at);
 CREATE TABLE IF NOT EXISTS "PAY_PERIOD" (
     id                       BIGSERIAL                NOT NULL PRIMARY KEY,
     employer_id              BIGINT                   NOT NULL REFERENCES "PAY_EMPLOYER"(id),
@@ -233,14 +240,13 @@ CREATE TABLE IF NOT EXISTS "PAY_PERIOD" (
     period_month             SMALLINT                 NOT NULL,
     payment_date             DATE                     NOT NULL,
     worked_days              SMALLINT                 NOT NULL DEFAULT 30,
-    status                   payroll_status           NOT NULL DEFAULT 'projected',
-    employment_contract_kind employment_contract_kind NOT NULL DEFAULT 'indefinite',
     declared_net_pay_clp     NUMERIC(18,2),
     expected_net_pay_clp     NUMERIC(18,2),
     net_pay_difference_clp   NUMERIC(18,2),
     pension_plan_id          BIGINT                   REFERENCES "PAY_PENS_PLAN"(id),
     UNIQUE (employer_id, period_year, period_month)
 );
+
 
 CREATE TABLE IF NOT EXISTS "PAY_PRD_HLTH" (
     period_id      BIGINT NOT NULL REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
