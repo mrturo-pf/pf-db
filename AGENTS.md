@@ -75,7 +75,29 @@ Each keeps its own SQLAlchemy ORM models and repositories — no ORM code lives 
   instead of an always-on service. Any future infra addition here must justify its cost
   vs. the on-demand alternative — see [`docs/ci.md`](docs/ci.md#invariants-never-violate).
 
-## Development commands
+## GitHub CLI prerequisite
+
+Before any interaction with GitHub using `gh`, including read-only commands, execute
+`unset-proxies` first:
+
+```bash
+unset-proxies
+```
+
+The alias is defined in `~/.zshrc` as:
+
+```bash
+alias unset-proxies="source $HOME/Documents/scripts/unset_proxies.sh"
+```
+
+If aliases are unavailable in the current shell, run:
+
+```bash
+source "$HOME/Documents/scripts/unset_proxies.sh"
+```
+
+Only then run `gh`. This applies to every `gh` command in this repository.
+
 
 See [`docs/development.md`](docs/development.md) for the complete development workflow:
 - Database commands (local-up, db-reset, adminer-up, etc.)
