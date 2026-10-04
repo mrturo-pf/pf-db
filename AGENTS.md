@@ -75,7 +75,12 @@ Each keeps its own SQLAlchemy ORM models and repositories — no ORM code lives 
   instead of an always-on service. Any future infra addition here must justify its cost
   vs. the on-demand alternative — see [`docs/ci.md`](docs/ci.md#invariants-never-violate).
 
-## GitHub CLI prerequisite
+## CLI policy
+
+Do not implement, add, restore, or expand any CLI command in `pf-db`. Use migrations,
+Make targets, and existing automation instead. Any exception requires explicit user
+approval first.
+
 
 Before any interaction with GitHub using `gh`, including read-only commands, execute
 `unset-proxies` first:
