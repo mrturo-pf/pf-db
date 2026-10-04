@@ -284,7 +284,7 @@ CREATE INDEX IF NOT EXISTS idx_payroll_items_concept_id ON "PAY_ITEM"(concept_id
 
 -- PDF payslip templates (employer-specific raw_label -> concept_code mapping).
 -- Replaces pf-payroll's former git-tracked JSON files -- see
--- pf-payroll/docs/proposals/pdf-template-management-design-recommendation.md.
+-- pf-payroll/docs/proposals/pdf-template-management-recommendation.md.
 -- employer_id is required: a template may only be created for an employer
 -- that already has a PAY_EMPLOYER row (i.e. after its first payroll import
 -- has run at least once). There is deliberately no employer_name column --

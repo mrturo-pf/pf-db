@@ -3,7 +3,7 @@
 Moves payroll-PDF-payslip templates out of pf-payroll's git-tracked JSON
 files (`infrastructure/pdf_import/templates/<employer slug>/v<N>.json`) into
 the database, per
-`pf-payroll/docs/proposals/pdf-template-management-design-recommendation.md`.
+`pf-payroll/docs/proposals/pdf-template-management-recommendation.md`.
 Two normalized tables (not a JSONB `fields` column) so `concept_code` can
 carry a real FK to `PAY_CONCEPT(code)` -- closing an integrity gap the old
 hand-edited JSON format could not offer at all (a typo'd `concept_code`

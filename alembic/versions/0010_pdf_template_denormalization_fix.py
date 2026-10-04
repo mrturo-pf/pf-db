@@ -3,7 +3,7 @@
 Two columns added in 0009 turned out to duplicate data already owned by
 another table, with nothing enforcing the two copies stay in sync -- caught
 during a design review (see
-pf-payroll/docs/proposals/pdf-template-management-design-plan.md's
+pf-payroll/docs/proposals/pdf-template-management-plan.md's
 "Denormalization follow-up" section for the full writeup):
 
 1. `PAY_PDF_TEMPLATE_FIELD.kind` duplicated `PAY_CONCEPT.kind` with zero

@@ -216,7 +216,7 @@ WHERE p.name = 'METLIFE'
 -- Migrates the one real template that used to live only as a git-tracked
 -- JSON file (pf-payroll's former
 -- infrastructure/pdf_import/templates/walmart-chile/v1.json, now deleted --
--- see pf-payroll/docs/proposals/pdf-template-management-design-plan.md).
+-- see pf-payroll/docs/proposals/pdf-template-management-plan.md).
 -- This keeps a fresh `make seed-real` bootstrapped with the real template
 -- with no manual POST /payroll/templates call required to reach parity.
 -- No employer_name column (removed in migration 0012) -- employer_id is
@@ -244,7 +244,7 @@ SET
 -- Fields are fully replaced (delete+insert) rather than individually
 -- upserted -- no natural per-field unique key exists, and this mirrors the
 -- same delete-then-reinsert convention pf-payroll's own import_rows()
--- already uses for PAY_ITEM rows (see spreadsheet-export-design-plan.md's
+-- already uses for PAY_ITEM rows (see spreadsheet-export-plan.md's
 -- Correction 2). Safe here: this is seed data, re-run idempotently, not a
 -- live request path.
 DELETE FROM "PAY_PDF_TEMPLATE_FIELD"

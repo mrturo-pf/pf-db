@@ -704,8 +704,8 @@ CREATE INDEX idx_payroll_items_concept_id ON "PAY_ITEM"(concept_id);
 Employer-specific payroll PDF payslip templates (raw-label -> `concept_code` mapping
 rules), managed via `pf-payroll`'s `/payroll/templates` CRUD endpoints. Replaces the
 former git-tracked JSON files under `pf-payroll/infrastructure/pdf_import/templates/`
--- see `pf-payroll/docs/proposals/pdf-template-management-design-recommendation.md`
-and `-design-plan.md`.
+-- see `pf-payroll/docs/proposals/pdf-template-management-recommendation.md`
+and `-plan.md`.
 
 **Owner:** pf-payroll
 

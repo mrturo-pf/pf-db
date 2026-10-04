@@ -8,7 +8,7 @@ PAY_CONCEPT(code)` (added in 0009) was the only place in the whole schema
 that referenced `PAY_CONCEPT` by its natural key instead -- an unintentional
 inconsistency, not a deliberate design choice, caught during a follow-up
 review (see
-pf-payroll/docs/proposals/pdf-template-management-design-plan.md's
+pf-payroll/docs/proposals/pdf-template-management-plan.md's
 "Follow-up session" section for the full writeup).
 
 This migration adds `concept_id`, backfills it from the existing
