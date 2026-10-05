@@ -222,7 +222,6 @@ CREATE TABLE IF NOT EXISTS "PAY_EMP_CONT" (
     CHECK (ended_at IS NULL OR ended_at >= started_at),
     CHECK (is_indefinite OR ended_at IS NOT NULL),
     EXCLUDE USING gist (
-        employer_id WITH =,
         daterange(
             started_at,
             COALESCE(ended_at, 'infinity'::date),

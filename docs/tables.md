@@ -525,8 +525,8 @@ created ad hoc through the import flows):
 
 Employment contract intervals used to resolve the contract applicable to a payroll
 period. `is_indefinite` is explicit and remains true for an indefinite contract even
-after its employment relationship ends and `ended_at` is populated. Contracts for the
-same employer may not overlap.
+after its employment relationship ends and `ended_at` is populated. Contract validity
+intervals may not overlap globally, including across different employers.
 
 **Owner:** pf-payroll
 
@@ -540,7 +540,14 @@ CREATE TABLE "PAY_EMP_CONT" (
     is_indefinite BOOLEAN NOT NULL,
     position      VARCHAR(120),
     CHECK (ended_at IS NULL OR ended_at >= started_at),
-    CHECK (is_indefinite OR ended_at IS NOT NULL)
+    CHECK (is_indefinite OR ended_at IS NOT NULL),
+    EXCLUDE USING gist (
+        daterange(
+            started_at,
+            COALESCE(ended_at, 'infinity'::date),
+            '[]'
+        ) WITH &&
+    )
 );
 ```
 
