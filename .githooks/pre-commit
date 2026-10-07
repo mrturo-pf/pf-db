@@ -29,7 +29,7 @@ fi
 echo "==> [pre-commit] language-check"
 LANGUAGE_CHECK="../../scripts/check-language.py"
 if [ -f "$LANGUAGE_CHECK" ]; then
-  python3 "$LANGUAGE_CHECK" --staged
+  python3 "$LANGUAGE_CHECK" --staged --mode comments
 else
   echo "Skipping language-check: $LANGUAGE_CHECK not found (standalone checkout without the pf-base root?)"
 fi
