@@ -41,7 +41,7 @@ introduced in migration `0003` (UPPERCASE, max 14 chars, service prefix). See
 | Tables | Domain |
 |---|---|
 | `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT`, `RAT_EXPORT_JOB` | financial rates |
-| All others (17 tables total) + `PAY_MV_SUMARY` | payroll |
+| 15 payroll tables + `PAY_MV_SUMARY` materialized view | payroll |
 
 Ownership means: only the microservices that own a domain write to those tables.
 Any microservice may read shared tables when required by an approved integration

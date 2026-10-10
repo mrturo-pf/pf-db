@@ -19,7 +19,7 @@ employee-level column at all, only `employer_id` + `period_year`/`period_month`.
 
 ## Table ownership
 
-Ownership means: only the microservices that own a domain **write** to those tables. Any microservice may **read** any table.
+Ownership means: only the microservices that own a domain **write** to those tables. Any microservice may **read** shared tables when required by an approved integration contract; consumers should prefer documented service APIs when one exists.
 
 | Tables | Domain | Owner | Access pattern |
 |---|---|---|

@@ -24,6 +24,6 @@ See [`docs/getting-started.md`](docs/getting-started.md) for installation, setup
 | [`docs/getting-started.md`](docs/getting-started.md) | Installation, setup, basic validation |
 | [`docs/development.md`](docs/development.md) | Make commands, database workflows, troubleshooting |
 | [`docs/migrations.md`](docs/migrations.md) | Creating migrations, patterns, invariants, best practices |
-| [`docs/tables.md`](docs/tables.md) | 17 tables reference, ownership, relationships, ERD |
+| [`docs/tables.md`](docs/tables.md) | 20 tables and one materialized view reference, ownership, relationships, ERD |
 | [`docs/ci.md`](docs/ci.md) | CI pipeline, approval gates, production workflow |
 | [`AGENTS.md`](AGENTS.md) | AI agent reference: language policy, code style, design principles |
