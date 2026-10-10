@@ -588,8 +588,8 @@ CREATE TABLE "PAY_PERIOD" (
 **The review workflow and period-level employment contract kind are not persisted.
 Contract selection is resolved through `PAY_EMP_CONT` by employer and payment date.**
 
-**No seed file** -- created by `POST /payroll/import/spreadsheet`,
-`POST /payroll/import/json`, or the CLI's `import-payroll` command.
+**No seed file** -- created by `POST /payroll/import/spreadsheet` or
+`POST /payroll/import/json`.
 
 ---
 

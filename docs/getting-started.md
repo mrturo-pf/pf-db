@@ -5,7 +5,7 @@ Quick installation and setup guide for pf-db local development.
 ## Overview
 
 pf-db manages PostgreSQL schema and migrations for the PF (Personal Finances) ecosystem. It contains:
-- DDL (Data Definition Language) for 17 tables
+- DDL (Data Definition Language) for 20 tables and one materialized view
 - Alembic migrations (version control for schema changes)
 - Seed data (base, test, and production-realistic fixtures)
 
@@ -145,7 +145,7 @@ This verifies that all migration files have corresponding DB versions.
 
 - [Development Guide](development.md) - Make commands, adding migrations
 - [Migrations Guide](migrations.md) - Creating migrations, invariants, best practices
-- [Tables Reference](tables.md) - 17 tables, ownership, connection string
+- [Tables Reference](tables.md) - 20 tables and one materialized view, ownership, connection string
 - [CI Guide](ci.md) - Pipeline validation
 
 ## Common workflows
