@@ -2,6 +2,12 @@
 
 PostgreSQL schema and Alembic migrations for the PF (Personal Finances) ecosystem. **This repo owns DDL and migrations only** — no application code, no HTTP API, no ORM models.
 
+## Scope
+
+This file governs implementation, testing, documentation, and operations inside
+`pf-db`. Ecosystem ownership boundaries and cross-repository coordination are defined
+in the root [`AGENTS.md`](../../AGENTS.md). This file owns the schema-specific details.
+
 ## Purpose
 
 `pf-db` is the single source of truth for all PostgreSQL database objects shared across the PF ecosystem microservices. All consuming microservices connect to the same PostgreSQL instance; each microservice keeps its own SQLAlchemy models and repositories.
@@ -38,7 +44,8 @@ introduced in migration `0003` (UPPERCASE, max 14 chars, service prefix). See
 | All others (17 tables total) + `PAY_MV_SUMARY` | payroll |
 
 Ownership means: only the microservices that own a domain write to those tables.
-Any microservice may read any table.
+Any microservice may read shared tables when required by an approved integration
+contract. Consumers should prefer documented service APIs when one exists.
 
 ## Consuming microservices
 
@@ -94,20 +101,8 @@ This is the database-specific form of the ecosystem's TDD policy; a migration do
 Do not implement, add, restore, or expand any product-facing CLI command in `pf-db`. Existing development, migration, deployment, and automation commands such as `make` and repository scripts may still be used unless explicitly prohibited. Use migrations, Make targets, and existing automation instead. Any exception requires explicit user approval first.
 
 
-Before any interaction with GitHub using `gh`, including read-only commands, execute
-`unset-proxies` first:
-
-```bash
-unset-proxies
-```
-
-The alias is defined in `~/.zshrc` as:
-
-```bash
-alias unset-proxies="source $HOME/Documents/scripts/unset_proxies.sh"
-```
-
-If aliases are unavailable in the current shell, run:
+Before any interaction with GitHub using `gh`, including read-only commands, run
+`unset-proxies` or:
 
 ```bash
 source "$HOME/Documents/scripts/unset_proxies.sh"
@@ -207,11 +202,12 @@ Quick reference:
 
 ## Versioning
 
-- SemVer; Conventional Commits (English)
-- Never autonomously commit, push branches, create issues, or open PRs — requires explicit user command
-- **Post-push monitoring:** before pushing, inspect the target workflow and cancel older superseded runs for the same repository, branch, and workflow. Cancel only active runs (`queued`, `pending`, `in_progress`, or `waiting`) using the actual status field; never cancel completed runs or runs from another branch/workflow. Verify each cancellation before pushing, then monitor the new run by exact SHA/run ID with `gh run watch`. Manual deployment approval requires explicit user authorization.
-- **Network resilience:** if `gh`/GitHub is unreachable while monitoring (VPN/proxy
-  hiccups happen), retry a couple of times with a short wait, then stop — never loop
-  indefinitely, and never assume a push/cancel/approval-check succeeded just because
-  an earlier command in the same sequence did. Report the blocker to the user
-  explicitly and wait for them to fix connectivity or ask for a retry.
+- SemVer; Conventional Commits (English).
+- Never autonomously commit, push branches, create issues, or open PRs — requires
+  explicit user command.
+- Before pushing, inspect the target workflow and cancel only older active runs for
+  the same repository, branch, and workflow. Verify cancellation, then monitor the
+  new run by exact SHA or run ID. Manual deployment approval requires explicit user
+  authorization.
+- If `gh`/GitHub is unreachable, retry a couple of times and stop; never assume an
+  operation succeeded.
