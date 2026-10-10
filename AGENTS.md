@@ -75,11 +75,23 @@ Each keeps its own SQLAlchemy ORM models and repositories — no ORM code lives 
   instead of an always-on service. Any future infra addition here must justify its cost
   vs. the on-demand alternative — see [`docs/ci.md`](docs/ci.md#invariants-never-violate).
 
+## Migration TDD
+
+Develop database changes with test-first executable schema assertions. Before or alongside the migration, define checks for the expected upgrade behavior, schema objects, constraints, indexes, data invariants, and compatibility with consuming services.
+
+Every migration must validate:
+
+- upgrade from the previous revision;
+- downgrade to the previous revision;
+- idempotency where applicable;
+- schema and data invariants;
+- consumer compatibility when shared objects change.
+
+This is the database-specific form of the ecosystem's TDD policy; a migration does not need artificial unit tests when an executable migration/schema check is the meaningful test.
+
 ## CLI policy
 
-Do not implement, add, restore, or expand any CLI command in `pf-db`. Use migrations,
-Make targets, and existing automation instead. Any exception requires explicit user
-approval first.
+Do not implement, add, restore, or expand any product-facing CLI command in `pf-db`. Existing development, migration, deployment, and automation commands such as `make` and repository scripts may still be used unless explicitly prohibited. Use migrations, Make targets, and existing automation instead. Any exception requires explicit user approval first.
 
 
 Before any interaction with GitHub using `gh`, including read-only commands, execute
