@@ -1,7 +1,7 @@
 # Plan: Neon credential and backup hardening
 
 Date: 2026-10-10
-Status: investigating
+Status: closed
 Level: L
 Scope: Controlled Neon credential, role, backup/restore, and sensitive-artifact hardening.
 Related artifacts: [brief](neon-credential-and-backup-hardening-brief.md) · [recommendation](neon-credential-and-backup-hardening-recommendation.md) · [investigation](../investigations/neon-credential-and-backup-hardening.md)
@@ -26,8 +26,10 @@ Superseded-by: none
 - [x] Consumer compatibility validated in GCP after runtime secret cutover.
 - [x] Backup retention/storage/deletion policy approved.
 - [x] Restore rehearsal completed.
-- [ ] Consumer compatibility validated.
-- [ ] Sensitive artifacts deleted at the approved closure point.
+- [x] Consumer compatibility validated.
+- [x] Sensitive artifacts deleted at the approved closure point; `neon.env` remains under separate credential review.
+- [x] Role/ownership cleanup executed and consumer compatibility revalidated.
+- [x] Administrative `neon_service` cleanup assessed; provider-managed system role is unmodifiable and recorded as accepted residual risk.
 
 ## 2. Slices
 
@@ -93,14 +95,22 @@ evidence. Record any remaining follow-up as a separate register entry.
 
 | Date | Status | Change | Evidence |
 | --- | --- | --- | --- |
-| 2026-10-11 | approved | Owner approved option 2: local-only restricted dump under `pf-db/secrets/`, mode `600`, seven-day retention from dump creation, and manual deletion with evidence. | Dump/restore assertions passed; deletion remains pending until the rollback window expires. |
+| 2026-10-11 | in progress | Owner removed the restricted dump immediately, overriding the prior seven-day retention window. Deletion was verified; `neon.env` remains under separate credential review. | Filesystem absence check; no dump contents recorded |
+| 2026-10-11 | validated | Owner removed the restricted dump immediately, overriding the prior seven-day retention window. Deletion was verified; `neon.env` remains under separate credential review. | Filesystem absence check; no dump contents recorded |
+| 2026-10-11 | in progress | Prepared an interactive Neon role/ownership cleanup entry point: revoke `neon_service` superuser membership, set `NOLOGIN`, create `pf_schema_owner`, and reassign ownership without touching data/RLS. | Local syntax and ignore checks passed; mutation pending |
+| 2026-10-11 | in progress | Ownership cleanup completed: `pf_schema_owner` created, 83 objects reassigned, temporary membership revoked before commit. `neon_service` administrative cleanup remains blocked by missing ADMIN OPTION. | Neon execution results for ownership cleanup |
+| 2026-10-11 | blocked | Administrative cleanup cannot proceed with `neondb_owner`: no superuser or role with ADMIN OPTION over `neon_superuser`/`neon_service` is available. | Preflight result: `current_user=neondb_owner`, `is_superuser=false`, admin options false |
+
+| 2026-10-11 | blocked | Administrative cleanup cannot proceed with `neondb_owner`: no superuser or role with ADMIN OPTION over `neon_superuser`/`neon_service` is available. | Preflight result: `current_user=neondb_owner`, `is_superuser=false`, admin options false |
+| 2026-10-11 | validated | Neon confirmed `neon_service` is a provider-managed system role unmodifiable by the available user. Failed cleanup was rolled back and accepted as residual risk; it does not block closure. | Neon Console error evidence; no role state change |
 
 ## 5. Release record
 
-- Commits: pending
+- Commits: pending documentation closure
 - Workflow runs: completed for pf-rates/pf-payroll consumer cutover
 - Owner approval: recorded
 - Provider evidence: collected
 - Role matrix: verified
 - Restore rehearsal: passed
-- Cleanup/deletion evidence: pending seven-day retention window
+- Cleanup/deletion evidence: restricted dump and neon.env removed; role residual risk accepted
+- Closure: IMP-002 closed with provider-managed neon_service residual risk

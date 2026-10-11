@@ -1,7 +1,7 @@
 # Investigation: Neon credential and backup hardening
 
 Date: 2026-10-10
-Status: investigating
+Status: closed
 Level: L
 Scope: Neon credential exposure, runtime-role privilege, backup/restore readiness, and sensitive dump handling for the shared PF database.
 Owner: `pf-db`
@@ -173,7 +173,58 @@ The dump checksum and timestamp remain local evidence only. The rollback retenti
 window and deletion deadline still require owner approval; the dump must not be copied
 to Git, chat, or shared artifacts.
 
+## 5.6 Restricted dump cleanup evidence received (2026-10-11)
+
+The owner removed the local restricted dump after explicitly removing the planned
+retention window. A filesystem check confirmed that `modules/pf-db/secrets/neon_dump.sql`
+no longer exists. No dump contents, checksum, or business rows were added to Git,
+chat, or shared artifacts.
+
+The local `neon.env` credential file remains separate, mode `600`, and was not
+removed by this cleanup because its operational necessity and rotation decision are
+still distinct from dump retention.
+
+## 5.7 Role ownership cleanup evidence received (2026-10-11)
+
+The ownership-only cleanup completed successfully:
+
+- `pf_schema_owner` exists as `NOLOGIN`, `NOSUPERUSER`, `NOCREATEDB`,
+  `NOCREATEROLE`, and `NOBYPASSRLS`;
+- 83 public objects, including tables, sequences, indexes,
+  `PAY_MV_SUMARY`, and `alembic_version`, are now owned by `pf_schema_owner`;
+- `neondb_owner` was retained and no longer owns the inspected objects;
+- no data, table definitions, RLS policies, or rows were changed.
+
+The temporary membership used for `REASSIGN OWNED` was revoked before commit by
+the script. A separate read-only membership query is still required as evidence.
+The administrative actions `ALTER ROLE neon_service NOLOGIN` and
+`REVOKE neon_superuser FROM neon_service` remain pending because the available
+role lacks the required ADMIN OPTION.
+
+## 5.8 Administrative cleanup decision (2026-10-11)
+
+Neon Console confirmed that `neon_service` is a provider-managed system role that
+cannot be altered by the available database user. Attempts to execute
+`ALTER ROLE neon_service NOLOGIN` and revoke its `neon_superuser` membership were
+rejected by Neon and rolled back.
+
+This action is not required to complete IMP-002 because:
+
+- `pf-rates` and `pf-payroll` no longer use `neon_service` as their runtime
+  identity;
+- service-specific runtime roles and capability grants are active;
+- runtime deployment permissions and legacy keys were removed;
+- ownership was transferred to `pf_schema_owner`;
+- dump/restore and consumer cutover validations passed.
+
+The unmodifiable provider system role is recorded as an accepted residual risk.
+It should be revisited only if Neon exposes a supported control or if the runtime
+architecture changes. It does not block IMP-002 closure.
+
 ## 6. Decisions required
+
+
+
 
 - [x] Confirm Neon project, branch, and database metadata.
 - [x] Confirm the current runtime role and ownership pattern.
@@ -184,13 +235,30 @@ to Git, chat, or shared artifacts.
 - [x] Validate GCP consumer cutover with service-specific runtime credentials.
 - [x] Confirm backup/PITR/snapshot retention and whether it covers the required rollback window.
 - [x] Approve restricted logical dump storage, restore rehearsal, and deletion process.
+- [x] Remove the local restricted dump and record deletion evidence.
 - [ ] Decide whether RLS is required for the shared schema or whether service/database isolation is sufficient.
+- [x] Decide whether `neon.env` should be rotated or removed as a separate credential action: removed because no Neon local operation remains.
+- [ ] Execute the approved role/ownership cleanup script and validate consumers.
 - [x] Define the owner and evidence required for closure.
+
+The final administrative cleanup is blocked: `neondb_owner` is not superuser and
+no available role has `ADMIN OPTION` over `neon_superuser` or `neon_service`.
+The exact required owner/provider action is:
+
+```sql
+ALTER ROLE neon_service NOLOGIN;
+REVOKE neon_superuser FROM neon_service;
+```
+
+This requires a Neon administrative/provider connection. No further local role
+mutation should be attempted until that access exists.
 
 ## 7. Conclusion
 
-Runtime credential separation and GCP consumer cutover are complete. The remaining
-work is backup/PITR retention, a restricted restore rehearsal, cleanup ownership, and
-an explicit decision on retiring broad legacy runtime memberships. Do not revoke
-legacy memberships or change ownership until those gates and the rollback window are
-complete.
+
+Runtime credential separation, GCP consumer cutover, dump/restore rehearsal, and
+restricted dump cleanup are complete. The IMP-002 follow-up decisions are now
+limited to whether RLS is required, whether broad legacy Neon memberships and
+ownership should be retired, and whether the local `neon.env` credential should be
+rotated or removed as a separate operational action. These follow-ups must not be
+silently treated as completed by the dump cleanup.

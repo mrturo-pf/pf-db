@@ -70,6 +70,14 @@ must be configured atomically and validated.
   and representative schema invariants;
 - delete the dump after the approved retention window and record the result.
 
+### RLS decision
+
+For the current service-isolation model, defer RLS and document it as not required
+unless a future multi-tenant or row-owner access pattern appears. Roles and domain
+ownership remain the active isolation controls. Reopen RLS as a separate design if
+multiple tenants/users share rows or PostgreSQL is exposed directly to untrusted
+consumers.
+
 ## 4.1 Evidence-based target role matrix
 
 The current `neon_service` role can write across both `RAT_*` and `PAY_*` objects,
@@ -117,11 +125,12 @@ the owner must choose and approve one of these controls:
    restored into an ephemeral compatible PostgreSQL instance, and deleted after the
    approved rollback window.
 
-The owner approved option 2: store the restricted dump only under the local ignored
-`pf-db/secrets/` path with mode `600`, retain it for seven days from creation, and
-remove it manually with deletion evidence after the rollback window. The dump and
-restore rehearsal have passed their assertions. The artifact remains pending cleanup
-until the seven-day window expires.
+The owner initially approved option 2: store the restricted dump only under the
+local ignored `pf-db/secrets/` path with mode `600`, retain it for seven days from
+creation, and remove it manually with deletion evidence. After the restore
+rehearsal, the owner explicitly removed that retention window and the dump was
+deleted immediately with filesystem evidence. The local `neon.env` credential is a
+separate artifact and remains subject to its own rotation/cleanup decision.
 
 
 | ---: | --- | --- | --- |
