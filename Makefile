@@ -242,7 +242,7 @@ lint: ## Run ruff linter over alembic/
 
 .PHONY: identifier-check
 identifier-check: ## Validate DDL identifier naming and length policy
-	uv run --no-project python scripts/check_identifier_policy.py db/01_schema.sql
+	python3 scripts/check_identifier_policy.py db/01_schema.sql
 
 .PHONY: check
 check: lint identifier-check ## Run all quality checks (lint, identifier policy, migration checks in CI)
