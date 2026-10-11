@@ -62,5 +62,6 @@ if ! pg_dump "$NEON_DATABASE_URL" --format=plain --no-owner --no-privileges --cl
   exit 1
 fi
 
+chmod 600 "$DUMP_FILE"
 echo "Dump written to: $DUMP_FILE ($(du -h "$DUMP_FILE" | cut -f1))"
 echo "Next: run scripts/restore-neon-dump.sh (works fine on VPN, no internet needed -- it only talks to the local Docker container)."
