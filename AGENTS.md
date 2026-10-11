@@ -57,6 +57,29 @@ contract. Consumers should prefer documented service APIs when one exists.
 Both services connect to the same PostgreSQL instance managed by this repo.
 Each keeps its own SQLAlchemy ORM models and repositories — no ORM code lives here.
 
+## Service database identity policy
+
+`pf-db` owns the database role and grant contract consumed by `pf-rates` and
+`pf-payroll`. Every service must have its own login user/role with explicit,
+least-privilege permissions for its domain. Runtime identities must not be
+shared between services and must not be an owner, superuser, migrator, backup,
+or operator identity.
+
+Maintain and review an explicit matrix covering, at minimum:
+
+- service-to-role mapping;
+- tables, schemas, sequences, and materialized views readable or writable by
+  each service;
+- explicit exclusions for other domains and migration metadata;
+- role attributes, memberships, ownership, and default privileges;
+- credential storage, rotation, cutover, rollback, and consumer validation.
+
+Derive grants from the consuming service's actual code-backed read/write paths,
+apply them idempotently, and validate them with effective-privilege checks and
+service compatibility checks. A service must never receive broader access as a
+local workaround; changes to the matrix require explicit approval and
+coordination with the affected service repository.
+
 ## Language policy
 
 - All code, identifiers, comments, docstrings, and migration files: English
