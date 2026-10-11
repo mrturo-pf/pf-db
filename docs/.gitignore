@@ -1,4 +1,1 @@
 cloudshell/
-neon/*
-!neon/pf-neon-script-base.sh
-!neon/neon-config.json-example
