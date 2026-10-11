@@ -17,7 +17,22 @@ Payroll models a **single person's own payroll across one or more employers** ov
 time, not a multi-employee company payroll system -- `PAY_PERIOD` has no
 employee-level column at all, only `employer_id` + `period_year`/`period_month`.
 
-## Table ownership
+## Identifier naming policy
+
+New and renamed schema objects follow the `pf-db` identifier policy:
+
+- PostgreSQL's technical ceiling is **63 UTF-8 bytes** for every identifier;
+- table and materialized-view business names use at most **30 ASCII characters**;
+- table/materialized-view names are uppercase and use an explicit service prefix:
+  `RAT_`, `PAY_`, or `INC_`;
+- sequences, indexes, constraints, schemas, and other auxiliary identifiers must
+  remain below 63 bytes and use explicit deterministic names;
+- migrations must never rely on PostgreSQL's automatic identifier truncation;
+- existing exceptions require an explicit documented decision and are not renamed
+  by this policy alone.
+
+Validate DDL with `make identifier-check` before approving a schema change.
+
 
 Ownership means: only the microservices that own a domain **write** to those tables. Any microservice may **read** shared tables when required by an approved integration contract; consumers should prefer documented service APIs when one exists.
 

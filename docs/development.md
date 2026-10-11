@@ -83,7 +83,8 @@ See [Migrations Guide](migrations.md) for detailed migration workflows.
 | Command | Description |
 |---|---|
 | `make lint` | Run ruff linter over `alembic/` |
-| `make check` | Lint + migration-check |
+| `make identifier-check` | Validate DDL identifier naming and length policy |
+| `make check` | Lint + identifier policy + migration-check |
 
 ## Project management
 

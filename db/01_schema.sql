@@ -3,14 +3,14 @@
 -- Owned by pf-db; do NOT run this file directly in production.
 -- Use Alembic migrations instead: make migrate
 --
--- Table names use the service-prefix convention (RAT_ / PAY_), all
--- UPPERCASE, max 14 chars. Because these identifiers contain uppercase
--- letters, PostgreSQL requires them to be double-quoted EVERYWHERE they
--- are referenced (CREATE TABLE, REFERENCES, indexes, views) — otherwise
--- PostgreSQL folds the unquoted identifier to lowercase and it will not
--- match the actual (quoted, mixed-case) table. See alembic/versions/
--- 0003_rename_tables_service_prefix.py for the migration that hit this
--- exact bug.
+-- Table names use the service-prefix convention (RAT_ / PAY_), uppercase,
+-- and at most 30 ASCII characters for tables/materialized views. PostgreSQL's
+-- technical identifier ceiling is 63 bytes. Because these identifiers contain
+-- uppercase letters, PostgreSQL requires them to be double-quoted EVERYWHERE
+-- they are referenced (CREATE TABLE, REFERENCES, indexes, views) — otherwise
+-- PostgreSQL folds the unquoted identifier to lowercase and it will not match
+-- the actual quoted table. See alembic/versions/0003_rename_tables_service_prefix.py
+-- for the migration that hit this exact bug.
 --
 -- Sections:
 --   1. Financial rates     (financial rates domain)

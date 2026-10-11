@@ -240,5 +240,9 @@ lint: ## Run ruff linter over alembic/
 	@command -v $(RUFF) >/dev/null 2>&1 || { echo "ERROR: ruff not found. Run: make install"; exit 1; }
 	$(RUFF) check alembic/
 
+.PHONY: identifier-check
+identifier-check: ## Validate DDL identifier naming and length policy
+	uv run --no-project python scripts/check_identifier_policy.py db/01_schema.sql
+
 .PHONY: check
-check: lint ## Run all quality checks (lint only for local; CI also runs migration-check)
+check: lint identifier-check ## Run all quality checks (lint, identifier policy, migration checks in CI)

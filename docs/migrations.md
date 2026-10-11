@@ -65,7 +65,28 @@ def downgrade() -> None:
     """)
 ```
 
-## Creating a new migration
+## Identifier policy
+
+Before approving a migration that creates or renames database objects, run:
+
+```bash
+make identifier-check
+```
+
+The policy is:
+
+- PostgreSQL identifiers must remain within 63 UTF-8 bytes;
+- tables and materialized views use uppercase ASCII names of at most 30 characters
+  with an explicit `RAT_`, `PAY_`, or `INC_` prefix;
+- sequences, indexes, constraints, schemas, and other auxiliary names must use
+  explicit deterministic names below the 63-byte ceiling;
+- automatic PostgreSQL identifier truncation is forbidden;
+- proposed physical names must be validated in migration upgrade/downgrade and
+  consumer compatibility checks before production.
+
+`make identifier-check` validates the versioned base DDL and proposed names can be
+passed explicitly with `--identifier KIND:NAME` to the underlying script.
+
 
 ### Step 1: Determine the revision number
 

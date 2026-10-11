@@ -35,7 +35,10 @@ pf-db/
 ## Table ownership
 
 All tables follow the `RAT_*` (pf-rates) / `PAY_*` (pf-payroll) naming convention
-introduced in migration `0003` (UPPERCASE, max 14 chars, service prefix). See
+introduced in migration `0003` (uppercase, service prefix, maximum 30 ASCII
+characters for table/materialized-view names). PostgreSQL's technical ceiling is
+63 bytes for every identifier; indexes, constraints, sequences, and other
+auxiliary identifiers must remain below that ceiling with explicit names. See
 [`docs/tables.md`](docs/tables.md) for the full list with schemas and sample data.
 
 | Tables | Domain |
