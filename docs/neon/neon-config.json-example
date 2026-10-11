@@ -1,0 +1,6 @@
+{
+  "project_id": "example-project-123456",
+  "branch_id": "br-example-branch-123456",
+  "database": "pf_db_example",
+  "neon_database_url": "postgresql+asyncpg://example_user:REPLACE_WITH_LOCAL_SECRET@ep-example-host.us-east-1.aws.neon.tech/pf_db_example?ssl=require&channel_binding=require&sslmode=require"
+}
