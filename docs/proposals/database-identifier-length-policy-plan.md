@@ -1,7 +1,7 @@
 # Plan: Database identifier length policy
 
 Date: 2026-10-11
-Status: closed
+Status: validated
 Level: M
 Scope: Define and activate the `pf-db` identifier length and naming policy.
 Related artifacts: [brief](database-identifier-length-policy-brief.md) · [recommendation](database-identifier-length-policy-recommendation.md) · [investigation](../investigations/database-identifier-length-policy.md)
@@ -19,7 +19,7 @@ Superseded-by: none
 - [x] `pf-svc-income` proposed names checked against the policy.
 - [x] Documentation and validator implementation completed.
 - [x] Migration compatibility scope clarified: physical `PAY_*` → `INC_*` migration and consumer compatibility belong to `pf-svc-income-renaming`, not IMP-008.
-- [x] Index/register closure evidence recorded.
+- [ ] Index/register release evidence recorded.
 
 ## 2. Slices
 
@@ -65,7 +65,7 @@ migration proposal if physical renames remain necessary.
 | --- | --- | --- | --- |
 | 2026-10-11 | in progress | Implemented the initial DDL identifier validator and added `make identifier-check`/`make check` integration. Existing base schema validates with 36 identifiers. | `make identifier-check` passed |
 | 2026-10-11 | in progress | Validated versioned `db/*.sql` and `alembic/versions/*.py` inventory, proposed `INC_*` names, and auxiliary names. `make check` passed. Migration upgrade/downgrade compatibility remains pending. | Validator output and `make check` |
-| 2026-10-11 | closed | IMP-008 closed with policy and validator complete. Physical `PAY_*` → `INC_*` migration compatibility is delegated to `pf-svc-income-renaming`; full `make check` was environment-blocked by external package/network issues, while lint and identifier validation passed. | Local validator, inventory, proposed-name checks, and lint |
+| 2026-10-11 | validated | Policy and validator implementation validated locally; release evidence remains pending commit/push and CI. Physical rename migration remains delegated to `pf-svc-income-renaming`. | Local validator, inventory, proposed-name checks, and lint |
 
 ## 5. Release record
 
