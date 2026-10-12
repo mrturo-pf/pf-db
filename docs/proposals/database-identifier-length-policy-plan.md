@@ -18,7 +18,7 @@ Superseded-by: none
 - [x] Current DDL and Alembic identifier inventory validated.
 - [x] `pf-svc-income` proposed names checked against the policy.
 - [x] Documentation and validator implementation completed.
-- [x] Migration compatibility tests pass through current DDL/Alembic inventory and proposed-name validation; physical `INC_*` migration tests are explicitly out of scope and owned by `pf-svc-income-renaming`.
+- [x] Migration compatibility scope clarified: physical `PAY_*` → `INC_*` migration and consumer compatibility belong to `pf-svc-income-renaming`, not IMP-008.
 - [x] Index/register closure evidence recorded.
 
 ## 2. Slices
@@ -65,12 +65,12 @@ migration proposal if physical renames remain necessary.
 | --- | --- | --- | --- |
 | 2026-10-11 | in progress | Implemented the initial DDL identifier validator and added `make identifier-check`/`make check` integration. Existing base schema validates with 36 identifiers. | `make identifier-check` passed |
 | 2026-10-11 | in progress | Validated versioned `db/*.sql` and `alembic/versions/*.py` inventory, proposed `INC_*` names, and auxiliary names. `make check` passed. Migration upgrade/downgrade compatibility remains pending. | Validator output and `make check` |
-| 2026-10-11 | closed | Closed policy work. Physical `PAY_*` → `INC_*` migration compatibility is explicitly delegated to `pf-svc-income-renaming`. | Local validator and `make check` passed; no schema mutation |
+| 2026-10-11 | closed | IMP-008 closed with policy and validator complete. Physical `PAY_*` → `INC_*` migration compatibility is delegated to `pf-svc-income-renaming`; full `make check` was environment-blocked by external package/network issues, while lint and identifier validation passed. | Local validator, inventory, proposed-name checks, and lint |
 
 ## 5. Release record
 
 - Commits: pending
 - Workflow runs: pending
 - Owner approval: recorded
-- Validator/CI evidence: local validation passed; CI pending
+- Validator/CI evidence: local validator and lint passed; full local check had one external/network-dependent test failure
 - Physical rename migration: delegated to `pf-svc-income-renaming`

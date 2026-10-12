@@ -1,7 +1,7 @@
 # Brief: Neon credential and backup hardening
 
 Date: 2026-10-10
-Status: designed
+Status: closed
 Level: L
 Scope: Shared Neon credential, runtime-role, backup/restore, and sensitive-artifact hardening.
 Related artifacts: [investigation](../investigations/neon-credential-and-backup-hardening.md) · [register](../../../docs/proposals/ECOSYSTEM-IMPROVEMENT-REGISTER.md)
