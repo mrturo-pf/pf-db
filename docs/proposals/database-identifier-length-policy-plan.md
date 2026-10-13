@@ -19,7 +19,7 @@ Superseded-by: none
 - [x] `pf-svc-income` proposed names checked against the policy.
 - [x] Documentation and validator implementation completed.
 - [x] Migration compatibility scope clarified: physical `PAY_*` → `INC_*` migration and consumer compatibility belong to `pf-svc-income-renaming`, not IMP-008.
-- [ ] Index/register release evidence recorded.
+- [x] Index/register release evidence recorded.
 
 ## 2. Slices
 
@@ -65,12 +65,12 @@ migration proposal if physical renames remain necessary.
 | --- | --- | --- | --- |
 | 2026-10-11 | in progress | Implemented the initial DDL identifier validator and added `make identifier-check`/`make check` integration. Existing base schema validates with 36 identifiers. | `make identifier-check` passed |
 | 2026-10-11 | in progress | Validated versioned `db/*.sql` and `alembic/versions/*.py` inventory, proposed `INC_*` names, and auxiliary names. `make check` passed. Migration upgrade/downgrade compatibility remains pending. | Validator output and `make check` |
-| 2026-10-11 | validated | Policy and validator implementation validated locally; release evidence remains pending commit/push and CI. Physical rename migration remains delegated to `pf-svc-income-renaming`. | Local validator, inventory, proposed-name checks, and lint |
+| 2026-10-13 | released | Commit/push and documentation CI evidence recorded; physical rename migration remains delegated to `pf-svc-income-renaming`. | Commit `9828a08`; documentation workflow run `38191226891` passed |
 
 ## 5. Release record
 
-- Commits: pending
-- Workflow runs: pending
+- Commits: `5eb65da`, `1d269f7`, `9828a08`
+- Workflow runs: documentation language `38191226891` — success
 - Owner approval: recorded
-- Validator/CI evidence: local validator and lint passed; full local check had one external/network-dependent test failure
+- Validator/CI evidence: local validator and lint passed; documentation CI passed; no production mutation performed
 - Physical rename migration: delegated to `pf-svc-income-renaming`
