@@ -351,7 +351,7 @@ Health plan **tiers**, one or more per institution, each valid over a date range
 with its own `contracted_uf`. A single payroll period is typically linked to
 *multiple* rows here at once via `PAY_PRD_HLTH` (e.g. `Base` + `GES` + `Adicionales`
 tiers for the same Isapre) -- see
-[`health-additional-uf-mismatch.md`](investigations/health-additional-uf-mismatch.md)
+[`https://github.com/mrturo-pf/pf-improvements/blob/main/improvements/HIST-010-health-additional-uf-mismatch/investigation.md`](https://github.com/mrturo-pf/pf-improvements/blob/main/improvements/HIST-010-health-additional-uf-mismatch/investigation.md)
 for the domain logic (`prorated_contracted_uf()` /
 `prorated_additional_amount_clp()` in pf-payroll's
 `domain/health_plan_proration.py`) that prorates each tier by its day-overlap with
@@ -726,7 +726,7 @@ CREATE INDEX idx_payroll_items_concept_id ON "PAY_ITEM"(concept_id);
 Employer-specific payroll PDF payslip templates (raw-label -> `concept_code` mapping
 rules), managed via `pf-payroll`'s `/payroll/templates` CRUD endpoints. Replaces the
 former git-tracked JSON files under `pf-payroll/infrastructure/pdf_import/templates/`
--- see `pf-payroll/docs/proposals/pdf-template-management-recommendation.md`
+-- see `pf-payroll/https://github.com/mrturo-pf/pf-improvements/blob/main/improvements/HIST-019-pdf-template-management/recommendation.md`
 and `-plan.md`.
 
 **Owner:** pf-payroll
