@@ -277,7 +277,7 @@ Both services verify that pf-db is running before starting.
 
 ## See also
 
-- [pf-rates README](../pf-rates/README.md) - Financial rates microservice
-- [pf-payroll README](../pf-payroll/README.md) - Payroll microservice
+- [pf-rates README](https://github.com/mrturo-pf/pf-rates/blob/main/README.md) - Financial rates microservice
+- [pf-payroll README](https://github.com/mrturo-pf/pf-payroll/blob/main/README.md) - Payroll microservice
 - [Development Guide](development.md) - Complete development workflow
 - [Tables Reference](tables.md) - Schema documentation

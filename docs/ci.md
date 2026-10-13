@@ -415,5 +415,5 @@ Never use `alembic revision --autogenerate`.
 - [Getting Started](getting-started.md) - Installation and setup
 - [Development Guide](development.md) - Make commands and workflows
 - [Migrations Guide](migrations.md) - Creating and managing migrations
-- [pf-rates Deployment Guide](../pf-rates/docs/deployment.md) - Service deployment
-- [pf-payroll Deployment Guide](../pf-payroll/docs/deployment.md) - Service deployment
+- [pf-rates Deployment Guide](https://github.com/mrturo-pf/pf-rates/blob/main/docs/deployment.md) - Service deployment
+- [pf-payroll Deployment Guide](https://github.com/mrturo-pf/pf-payroll/blob/main/docs/deployment.md) - Service deployment

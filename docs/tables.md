@@ -38,8 +38,8 @@ Ownership means: only the microservices that own a domain **write** to those tab
 
 | Tables | Domain | Owner | Access pattern |
 |---|---|---|
-| `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT`, `RAT_EXPORT_JOB` | Financial rates | [pf-rates](../pf-rates) | pf-payroll reads via HTTP API (never direct SQL) |
-| All others (15 tables + 1 view) | Payroll | [pf-payroll](../pf-payroll) | Exclusive write access |
+| `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT`, `RAT_EXPORT_JOB` | Financial rates | [pf-rates](https://github.com/mrturo-pf/pf-rates) | pf-payroll reads via HTTP API (never direct SQL) |
+| All others (15 tables + 1 view) | Payroll | [pf-payroll](https://github.com/mrturo-pf/pf-payroll) | Exclusive write access |
 
 ## Connection string
 
@@ -907,5 +907,5 @@ pf-payroll (API + PDF reports)
 - [Getting Started](getting-started.md) - Installation and setup
 - [Development Guide](development.md) - Make commands and workflows
 - [Migrations Guide](migrations.md) - Creating and managing migrations
-- [pf-rates AGENTS.md](../pf-rates/AGENTS.md) - Financial rates microservice
-- [pf-payroll AGENTS.md](../pf-payroll/AGENTS.md) - Payroll microservice
+- [pf-rates AGENTS.md](https://github.com/mrturo-pf/pf-rates/blob/main/AGENTS.md) - Financial rates microservice
+- [pf-payroll AGENTS.md](https://github.com/mrturo-pf/pf-payroll/blob/main/AGENTS.md) - Payroll microservice
