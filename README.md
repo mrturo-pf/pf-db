@@ -13,7 +13,13 @@ pf-service-b ──┼── PostgreSQL (pf-db) ◄── Alembic migrations (th
 pf-service-n ──┘
 ```
 
-## Quick start
+## Contribution workflow
+
+Create a dedicated branch, run the documented validation, and open a pull request
+targeting `main`. The protected `main` branch blocks direct pushes, force-pushes,
+and deletion. A merge to `main` is followed by the repository's controlled
+production migration process.
+
 
 See [`docs/getting-started.md`](docs/getting-started.md) for installation, setup, and first run.
 

@@ -31,6 +31,11 @@ Pull Request → main
 
 ### Push to main workflow
 
+A merge to the protected `main` branch produces the `push` event that starts the
+production workflow. Direct pushes, force-pushes, and deletion of `main` are
+blocked by repository settings; changes must first arrive through a pull request
+targeting `main`.
+
 ```
 Push → main
   └─> test job (same as PR)

@@ -83,7 +83,15 @@ service compatibility checks. A service must never receive broader access as a
 local workaround; changes to the matrix require explicit approval and
 coordination with the affected service repository.
 
-## Language policy
+## Repository contribution workflow
+
+Work on a dedicated branch and submit every change through a pull request targeting
+`main`. Direct pushes, force-pushes, and deletion of `main` are blocked. This
+single-maintainer repository does not currently require an additional approval,
+but all review conversations must be resolved before merge. Validate migrations
+locally and in CI before merging; production migration execution remains a
+separate controlled operation.
+
 
 - All code, identifiers, comments, docstrings, and migration files: English
 - Exception: preserve official Chilean regulatory terms/SQL literals/seed data in original language only when translation alters meaning
