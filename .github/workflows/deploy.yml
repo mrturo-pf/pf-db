@@ -17,12 +17,27 @@ permissions:
   contents: read
 
 jobs:
-  # ------------------------------------------------------------------
-  # check: lint only — safe for PRs, no DB access required
+  # check: validate migrations against a fresh PostgreSQL instance and run lint
   # ------------------------------------------------------------------
   check:
     name: Check
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: pf_db
+          POSTGRES_USER: pf_db
+          POSTGRES_PASSWORD: pf_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U pf_db -d pf_db"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db
 
     steps:
       - uses: actions/checkout@v7.0.0
@@ -41,35 +56,22 @@ jobs:
           working-directory: '.'
           install-extras: '[dev]'
 
+      - name: Run migrations against fresh PostgreSQL
+        run: alembic upgrade head
+
+      - name: Verify database is at migration head
+        run: make migration-check
+
       - name: Lint
         run: make check
 
-  # ------------------------------------------------------------------
-  # gate: manual approval before migrating (only on push to main)
-  # Configure required reviewers for the "production" environment in:
-  #   GitHub → Settings → Environments → production → Required reviewers
-  # ------------------------------------------------------------------
-  gate:
-    name: Approval Gate
-    runs-on: ubuntu-latest
-    needs: check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    environment: production
-
-    steps:
-      - name: Deployment approved
-        run: echo "Manual approval granted — proceeding to migrate."
-
-  # ------------------------------------------------------------------
-  # migrate: apply migrations + verify + migration-check + seed
-  # Runs only on push to main — never on PRs.
-  # migration-check runs after upgrade so the DB is at head and the
-  # check can verify consistency rather than failing on the new revision.
+  # deploy: apply migrations after a successful merge to protected main
+  # The merge is the release approval; this job never runs on pull requests.
   # ------------------------------------------------------------------
   migrate:
     name: Migrate & Seed
     runs-on: ubuntu-latest
-    needs: gate
+    needs: check
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:

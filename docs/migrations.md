@@ -498,7 +498,7 @@ See [CI Guide](ci.md) for details on how migrations are validated in CI.
 
 **Quick summary:**
 1. PR runs `make check` (lint + migration-check)
-2. Manual approval gate before migrations execute
+2. Merge to protected `main` after CI validation
 3. Migrations apply via `alembic upgrade head`
 4. `alembic check` verifies all migration files have corresponding DB versions
 

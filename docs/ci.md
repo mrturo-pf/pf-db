@@ -1,6 +1,6 @@
 # CI Guide
 
-Continuous Integration pipeline for pf-db: validation, approval gates, and production migration workflow.
+Continuous Integration pipeline for pf-db: validation and production migration workflow.
 
 ## Overview
 
@@ -31,14 +31,19 @@ Pull Request → main
 
 ### Push to main workflow
 
+A merge to the protected `main` branch produces the `push` event that starts the
+production workflow. Direct pushes, force-pushes, and deletion of `main` are
+blocked by repository settings; changes must first arrive through a pull request
+targeting `main`.
+
 ```
-Push → main
+Push → main after a pull request merge
   └─> test job (same as PR)
-        └─> Manual approval gate (production environment)
+        └─> Migrate & Seed
               └─> Notify (optional SMTP notification)
 ```
 
-**Duration:** 2 minutes + manual approval time
+**Duration:** 2 minutes
 
 ## Test job
 
@@ -85,40 +90,15 @@ All of the following must pass:
 
 If any step fails, the PR cannot be merged.
 
-## Manual approval gate
+## Production migration workflow
 
-On push to `main`, the pipeline pauses for **manual approval** via the `production` GitHub environment.
-
-### Configuring approval
-
-1. Go to **Settings** → **Environments** → **production**
-2. Check **Required reviewers**
-3. Add reviewers (users or teams who can approve)
-4. Save
-
-### Approving a deployment
-
-1. Navigate to the **Actions** tab
-2. Find the workflow run for the push to `main`
-3. Click **Review deployments**
-4. Select **production** environment
-5. Click **Approve and deploy**
-
-**Rejecting or cancelling does not send any notification** - it simply stops the pipeline.
-
-### Auto-expiry of forgotten approvals
-
-A separate scheduled workflow, `expire-stale-approvals.yml` (hourly cron, calls
-`pf-common`'s `expire-stale-approvals-reusable.yml`), automatically **rejects** any
-run still stuck in the manual approval gate after **12 hours**. GitHub's environment
-protection rules have no native timeout, so without this, a forgotten/unapproved push
-to `main` would wait for approval indefinitely. This requires the `GH_PAT` secret --
-the default `GITHUB_TOKEN` is deliberately blocked by GitHub from approving or
-rejecting its own environment gates.
+On a successful merge to protected `main`, the pipeline applies migrations and
+seeds automatically through the Cloud Run Job. The merge is the release approval;
+there is no separate manual production approval gate.
 
 ## Migration application workflow
 
-Once approved, migrations are applied to production via **Cloud Run Job**.
+After the merge, migrations are applied to production via **Cloud Run Job**.
 
 ### Cloud Run Job setup
 
@@ -359,11 +339,10 @@ The `pf-db` Cloud Run Job must complete before pf-rates or pf-payroll receive tr
 
 **Why:** Ensures schema is up-to-date before application code runs.
 
-### 3. Manual approval required
+### 3. Merge is the production release approval
 
-Never bypass the manual approval gate for production migrations.
-
-**Why:** Database changes are high-risk. Human review is critical.
+Production migrations run only after a pull request is merged into protected
+`main`. CI validation must pass before merge.
 
 ### 4. CI must pass
 

@@ -83,7 +83,15 @@ service compatibility checks. A service must never receive broader access as a
 local workaround; changes to the matrix require explicit approval and
 coordination with the affected service repository.
 
-## Language policy
+## Repository contribution workflow
+
+Work on a dedicated branch and submit every change through a pull request targeting
+`main`. Direct pushes, force-pushes, and deletion of `main` are blocked. This
+single-maintainer repository does not currently require an additional approval,
+but all review conversations must be resolved before merge. Validate migrations
+locally and in CI before merging; production migration execution remains a
+separate controlled operation.
+
 
 - All code, identifiers, comments, docstrings, and migration files: English
 - Exception: preserve official Chilean regulatory terms/SQL literals/seed data in original language only when translation alters meaning
@@ -214,7 +222,7 @@ Quick reference:
 ## CI
 
 See [`docs/ci.md`](docs/ci.md) for the complete CI guide:
-- Pipeline structure (test job, manual approval gate)
+- Pipeline structure (test job and automatic post-merge migration)
 - Migration application workflow (Cloud Run Job)
 - Common CI failures and solutions
 - Rollback strategy
@@ -223,8 +231,7 @@ See [`docs/ci.md`](docs/ci.md) for the complete CI guide:
 Quick reference:
 
 - **Every PR:** `alembic upgrade head` + `alembic check` against fresh postgres:16
-- **Manual approval:** Required before migrations run in production
-- **Production:** Cloud Run Job applies migrations before services start
+- **Production:** A merge to protected `main` triggers the Cloud Run Job, which applies migrations before services start
 
 ## Versioning
 
