@@ -59,8 +59,8 @@ jobs:
       - name: Run migrations against fresh PostgreSQL
         run: alembic upgrade head
 
-      - name: Verify migration consistency
-        run: alembic check
+      - name: Verify database is at migration head
+        run: make migration-check
 
       - name: Lint
         run: make check
