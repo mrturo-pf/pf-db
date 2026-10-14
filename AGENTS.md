@@ -222,7 +222,7 @@ Quick reference:
 ## CI
 
 See [`docs/ci.md`](docs/ci.md) for the complete CI guide:
-- Pipeline structure (test job, manual approval gate)
+- Pipeline structure (test job and automatic post-merge migration)
 - Migration application workflow (Cloud Run Job)
 - Common CI failures and solutions
 - Rollback strategy
@@ -231,8 +231,7 @@ See [`docs/ci.md`](docs/ci.md) for the complete CI guide:
 Quick reference:
 
 - **Every PR:** `alembic upgrade head` + `alembic check` against fresh postgres:16
-- **Manual approval:** Required before migrations run in production
-- **Production:** Cloud Run Job applies migrations before services start
+- **Production:** A merge to protected `main` triggers the Cloud Run Job, which applies migrations before services start
 
 ## Versioning
 
