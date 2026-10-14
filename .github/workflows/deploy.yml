@@ -17,12 +17,27 @@ permissions:
   contents: read
 
 jobs:
-  # ------------------------------------------------------------------
-  # check: lint only — safe for PRs, no DB access required
+  # check: validate migrations against a fresh PostgreSQL instance and run lint
   # ------------------------------------------------------------------
   check:
     name: Check
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: pf_db
+          POSTGRES_USER: pf_db
+          POSTGRES_PASSWORD: pf_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U pf_db -d pf_db"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql+asyncpg://pf_db:pf_db@localhost:5432/pf_db
 
     steps:
       - uses: actions/checkout@v7.0.0
@@ -40,6 +55,12 @@ jobs:
           cache-dependency-path: pyproject.toml
           working-directory: '.'
           install-extras: '[dev]'
+
+      - name: Run migrations against fresh PostgreSQL
+        run: alembic upgrade head
+
+      - name: Verify migration consistency
+        run: alembic check
 
       - name: Lint
         run: make check

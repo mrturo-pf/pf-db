@@ -1,6 +1,6 @@
 # CI Guide
 
-Continuous Integration pipeline for pf-db: validation, approval gates, and production migration workflow.
+Continuous Integration pipeline for pf-db: validation and production migration workflow.
 
 ## Overview
 
