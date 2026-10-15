@@ -6,12 +6,8 @@ on:
   pull_request:
     branches: [main]
 
-# Serialize migration runs instead of letting approved-close-together runs
-# race to apply migrations against the same Neon DB concurrently. See the
-# matching comment in pf-common's deploy-reusable.yml for the full story.
-concurrency:
-  group: deploy-pf-db-production
-  cancel-in-progress: false
+# Migration concurrency is scoped to the migration job below. The workflow
+# itself must not serialize documentation-only runs ahead of code migrations.
 
 permissions:
   contents: read
@@ -25,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - id: classify
         env:
           BEFORE_SHA: ${{ github.event.before }}
@@ -34,7 +30,14 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${EVENT_NAME}" != "push" ]; then echo "docs_only=false" >> "$GITHUB_OUTPUT"; exit 0; fi
-          files=$(git diff --name-only "${BEFORE_SHA}" "${HEAD_SHA}")
+          if git rev-parse --verify "${BEFORE_SHA}^{commit}" >/dev/null 2>&1; then
+            files=$(git diff --name-only "${BEFORE_SHA}" "${HEAD_SHA}")
+          elif git rev-parse --verify "${HEAD_SHA}^" >/dev/null 2>&1; then
+            files=$(git diff --name-only "${HEAD_SHA}^" "${HEAD_SHA}")
+          else
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           non_docs=$(printf '%s\n' "${files}" | grep -Ev '\.(md|mdx|txt|rst|adoc)$' || true)
           if [ -n "${files}" ] && [ -z "${non_docs}" ]; then echo "docs_only=true" >> "$GITHUB_OUTPUT"; else echo "docs_only=false" >> "$GITHUB_OUTPUT"; fi
 
@@ -94,6 +97,9 @@ jobs:
   migrate:
     name: Apply migrations & seed database
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-pf-db-production
+      cancel-in-progress: false
     needs: check
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
@@ -156,7 +162,7 @@ jobs:
   notify-failure:
     name: Notify — Failure
     runs-on: ubuntu-latest
-    needs: [check, migrate]
+    needs: [check, migrate, changes]
     if: |
       always() &&
       github.event_name == 'push' &&
@@ -196,7 +202,7 @@ jobs:
   notify-success:
     name: Notify — Success
     runs-on: ubuntu-latest
-    needs: [migrate]
+    needs: [migrate, changes]
     if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
