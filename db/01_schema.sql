@@ -41,15 +41,15 @@ CREATE TABLE IF NOT EXISTS "RAT_EXCH_RATE" (
 CREATE TABLE IF NOT EXISTS "RAT_ECON_INDEX" (
     id             BIGSERIAL     PRIMARY KEY,
     code           VARCHAR(20)   NOT NULL,
-    period_year    SMALLINT      NOT NULL CHECK (period_year BETWEEN 1990 AND 2100),
-    period_month   SMALLINT      NOT NULL CHECK (period_month BETWEEN 1 AND 12),
+    accrual_year    SMALLINT      NOT NULL CHECK (accrual_year BETWEEN 1990 AND 2100),
+    accrual_month   SMALLINT      NOT NULL CHECK (accrual_month BETWEEN 1 AND 12),
     index_value    NUMERIC(12,6) NOT NULL CHECK (index_value > 0),
     monthly_change NUMERIC(7,4),
     yearly_change  NUMERIC(7,4),
     base_period    VARCHAR(10)   NOT NULL DEFAULT 'DIC-2018',
     source         VARCHAR(40)   NOT NULL DEFAULT 'manual',
     created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_economic_indices UNIQUE (code, period_year, period_month)
+    CONSTRAINT uq_economic_indices UNIQUE (code, accrual_year, accrual_month)
 );
 
 CREATE TABLE IF NOT EXISTS "RAT_TAX_BRCKT" (
