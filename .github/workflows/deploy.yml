@@ -32,13 +32,16 @@ jobs:
           if [ "${EVENT_NAME}" != "push" ]; then echo "docs_only=false" >> "$GITHUB_OUTPUT"; exit 0; fi
           if git rev-parse --verify "${BEFORE_SHA}^{commit}" >/dev/null 2>&1; then
             files=$(git diff --name-only "${BEFORE_SHA}" "${HEAD_SHA}")
-          elif git rev-parse --verify "${HEAD_SHA}^" >/dev/null 2>&1; then
-            files=$(git diff --name-only "${HEAD_SHA}^" "${HEAD_SHA}")
           else
             echo "docs_only=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          non_docs=$(printf '%s\n' "${files}" | grep -Ev '\.(md|mdx|txt|rst|adoc)$' || true)
+          non_docs=$(while IFS= read -r file; do
+            case "${file}" in
+              *.md|*.mdx|*.rst|*.adoc|docs/*.txt|documentation/*.txt) ;;
+              *) printf '%s\n' "${file}" ;;
+            esac
+          done <<< "${files}")
           if [ -n "${files}" ] && [ -z "${non_docs}" ]; then echo "docs_only=true" >> "$GITHUB_OUTPUT"; else echo "docs_only=false" >> "$GITHUB_OUTPUT"; fi
 
   # check: validate migrations against a fresh PostgreSQL instance and run lint
@@ -167,7 +170,8 @@ jobs:
       always() &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
-      (needs.check.result == 'failure' || needs.migrate.result == 'failure')
+      (needs.changes.result == 'failure' || needs.check.result == 'failure' ||
+       needs.migrate.result == 'failure')
 
     steps:
       - name: Checkout pf-common for composite actions
@@ -203,7 +207,9 @@ jobs:
     name: Notify — Success
     runs-on: ubuntu-latest
     needs: [migrate, changes]
-    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: |
+      always() && github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.changes.result == 'success' && needs.migrate.result == 'success'
 
     steps:
       - name: Checkout pf-common for composite actions
