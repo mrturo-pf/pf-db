@@ -46,6 +46,11 @@ _COLUMN_RENAMES = (
     ("PAY_PERIOD", "period_month", "accrual_month"),
 )
 
+_RATES_COLUMN_RENAMES = (
+    ("RAT_ECON_INDEX", "period_year", "accrual_year"),
+    ("RAT_ECON_INDEX", "period_month", "accrual_month"),
+)
+
 
 def _assert_objects_exist(names: tuple[str, ...]) -> None:
     """Fail before mutation when the migration baseline is unexpected."""
@@ -149,7 +154,10 @@ def upgrade() -> None:
     _assert_objects_exist(("PAY_MV_SUMARY",))
     _assert_objects_absent(tuple(target for _, target in _TABLE_RENAMES))
     _assert_objects_absent(("INC_MV_PAY_SUMMARY",))
-    _assert_columns_exist(tuple((table, source) for table, source, _ in _COLUMN_RENAMES))
+    _assert_columns_exist(
+        tuple((table, source) for table, source, _ in _COLUMN_RENAMES)
+        + tuple((table, source) for table, source, _ in _RATES_COLUMN_RENAMES)
+    )
 
     op.execute('DROP MATERIALIZED VIEW "PAY_MV_SUMARY"')
     op.execute('DROP INDEX IF EXISTS "idx_pay_mv_sumary_period"')
@@ -160,6 +168,8 @@ def upgrade() -> None:
     for table, source, target in _COLUMN_RENAMES:
         renamed_table = dict(_TABLE_RENAMES)[table]
         op.alter_column(renamed_table, source, new_column_name=target)
+    for table, source, target in _RATES_COLUMN_RENAMES:
+        op.alter_column(table, source, new_column_name=target)
 
     _rename_summary_view(
         "INC_MV_PAY_SUMMARY",
@@ -183,6 +193,7 @@ def downgrade() -> None:
             (dict(_TABLE_RENAMES)[table], target)
             for table, _, target in _COLUMN_RENAMES
         )
+        + tuple((table, target) for table, _, target in _RATES_COLUMN_RENAMES)
     )
 
     op.execute('DROP MATERIALIZED VIEW "INC_MV_PAY_SUMMARY"')
@@ -191,6 +202,8 @@ def downgrade() -> None:
     for table, source, target in _COLUMN_RENAMES:
         renamed_table = dict(_TABLE_RENAMES)[table]
         op.alter_column(renamed_table, target, new_column_name=source)
+    for table, source, target in _RATES_COLUMN_RENAMES:
+        op.alter_column(table, target, new_column_name=source)
 
     for source, target in reversed(_TABLE_RENAMES):
         op.rename_table(target, source)
