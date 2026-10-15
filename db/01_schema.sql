@@ -41,15 +41,15 @@ CREATE TABLE IF NOT EXISTS "RAT_EXCH_RATE" (
 CREATE TABLE IF NOT EXISTS "RAT_ECON_INDEX" (
     id             BIGSERIAL     PRIMARY KEY,
     code           VARCHAR(20)   NOT NULL,
-    period_year    SMALLINT      NOT NULL CHECK (period_year BETWEEN 1990 AND 2100),
-    period_month   SMALLINT      NOT NULL CHECK (period_month BETWEEN 1 AND 12),
+    accrual_year    SMALLINT      NOT NULL CHECK (accrual_year BETWEEN 1990 AND 2100),
+    accrual_month   SMALLINT      NOT NULL CHECK (accrual_month BETWEEN 1 AND 12),
     index_value    NUMERIC(12,6) NOT NULL CHECK (index_value > 0),
     monthly_change NUMERIC(7,4),
     yearly_change  NUMERIC(7,4),
     base_period    VARCHAR(10)   NOT NULL DEFAULT 'DIC-2018',
     source         VARCHAR(40)   NOT NULL DEFAULT 'manual',
     created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_economic_indices UNIQUE (code, period_year, period_month)
+    CONSTRAINT uq_economic_indices UNIQUE (code, accrual_year, accrual_month)
 );
 
 CREATE TABLE IF NOT EXISTS "RAT_TAX_BRCKT" (
@@ -104,7 +104,7 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN null;
 END $$;
 
-CREATE TABLE IF NOT EXISTS "PAY_PENS_INST" (
+CREATE TABLE IF NOT EXISTS "INC_PENS_INST" (
     id             BIGSERIAL    PRIMARY KEY,
     code           VARCHAR(40)  NOT NULL UNIQUE,
     name           VARCHAR(120) NOT NULL,
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS "PAY_PENS_INST" (
     is_active      BOOLEAN      NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE IF NOT EXISTS "PAY_HLTH_INST" (
+CREATE TABLE IF NOT EXISTS "INC_HLTH_INST" (
     id             BIGSERIAL               PRIMARY KEY,
     code           VARCHAR(40)             NOT NULL UNIQUE,
     name           VARCHAR(120)            NOT NULL,
@@ -121,18 +121,18 @@ CREATE TABLE IF NOT EXISTS "PAY_HLTH_INST" (
     is_active      BOOLEAN                 NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE IF NOT EXISTS "PAY_PENS_PLAN" (
+CREATE TABLE IF NOT EXISTS "INC_PENS_PLAN" (
     id              BIGSERIAL    PRIMARY KEY,
-    institution_id  BIGINT       NOT NULL REFERENCES "PAY_PENS_INST"(id),
+    institution_id  BIGINT       NOT NULL REFERENCES "INC_PENS_INST"(id),
     valid_from      DATE         NOT NULL,
     valid_to        DATE,
     additional_rate NUMERIC(6,4) NOT NULL DEFAULT 0 CHECK (additional_rate >= 0),
     CONSTRAINT chk_pension_plan_dates CHECK (valid_to IS NULL OR valid_to >= valid_from)
 );
 
-CREATE TABLE IF NOT EXISTS "PAY_HLTH_PLAN" (
+CREATE TABLE IF NOT EXISTS "INC_HLTH_PLAN" (
     id             BIGSERIAL     PRIMARY KEY,
-    institution_id BIGINT        NOT NULL REFERENCES "PAY_HLTH_INST"(id),
+    institution_id BIGINT        NOT NULL REFERENCES "INC_HLTH_INST"(id),
     valid_from     DATE          NOT NULL,
     valid_to       DATE,
     plan_name      VARCHAR(120),
@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS "PAY_HLTH_PLAN" (
     CONSTRAINT chk_health_plan_dates CHECK (valid_to IS NULL OR valid_to >= valid_from)
 );
 
-CREATE TABLE IF NOT EXISTS "PAY_CNTRB_CAP" (
+CREATE TABLE IF NOT EXISTS "INC_CNTRB_CAP" (
     id         BIGSERIAL             PRIMARY KEY,
     cap_type   contribution_cap_type NOT NULL,
     valid_from DATE                  NOT NULL,
@@ -149,15 +149,15 @@ CREATE TABLE IF NOT EXISTS "PAY_CNTRB_CAP" (
     UNIQUE (cap_type, valid_from)
 );
 
-CREATE TABLE IF NOT EXISTS "PAY_COMP_PROV" (
+CREATE TABLE IF NOT EXISTS "INC_COMP_PROV" (
     id   BIGSERIAL    PRIMARY KEY,
     name VARCHAR(120) NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS "PAY_COMP_PLAN" (
+CREATE TABLE IF NOT EXISTS "INC_COMP_PLAN" (
     id            BIGSERIAL                         PRIMARY KEY,
     provider_id   BIGINT                            NOT NULL
-        REFERENCES "PAY_COMP_PROV"(id),
+        REFERENCES "INC_COMP_PROV"(id),
     name          VARCHAR(120)                      NOT NULL,
     cost_type     complementary_insurance_cost_type NOT NULL,
     cost_value    NUMERIC(12,4)                     NOT NULL CHECK (cost_value >= 0),
@@ -186,15 +186,15 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN null;
 END $$;
 
-CREATE TABLE IF NOT EXISTS "PAY_EMPLOYER" (
+CREATE TABLE IF NOT EXISTS "INC_EMPLOYER" (
     id                                       BIGSERIAL                  PRIMARY KEY,
     name                                     VARCHAR(120)               NOT NULL UNIQUE,
     tax_id                                   VARCHAR(32),
     country_code                             CHAR(2)                    NOT NULL DEFAULT 'CL',
-    first_increase_period_year               SMALLINT
-        CHECK (first_increase_period_year BETWEEN 1990 AND 2100),
-    first_increase_period_month              SMALLINT
-        CHECK (first_increase_period_month BETWEEN 1 AND 12),
+    first_increase_accrual_year               SMALLINT
+        CHECK (first_increase_accrual_year BETWEEN 1990 AND 2100),
+    first_increase_accrual_month              SMALLINT
+        CHECK (first_increase_accrual_month BETWEEN 1 AND 12),
     increase_frequency                       SMALLINT
         CHECK (increase_frequency > 0),
     payment_date_rule                        employer_payment_date_rule NOT NULL
@@ -212,9 +212,9 @@ CREATE TABLE IF NOT EXISTS "PAY_EMPLOYER" (
         DEFAULT 'previous_business_day'
 );
 
-CREATE TABLE IF NOT EXISTS "PAY_EMP_CONT" (
+CREATE TABLE IF NOT EXISTS "INC_EMP_CONT" (
     id            BIGSERIAL PRIMARY KEY,
-    employer_id   BIGINT NOT NULL REFERENCES "PAY_EMPLOYER"(id),
+    employer_id   BIGINT NOT NULL REFERENCES "INC_EMPLOYER"(id),
     started_at    DATE NOT NULL,
     ended_at      DATE,
     is_indefinite BOOLEAN NOT NULL,
@@ -231,37 +231,37 @@ CREATE TABLE IF NOT EXISTS "PAY_EMP_CONT" (
 );
 
 CREATE INDEX IF NOT EXISTS ix_pay_emp_cont_lookup
-    ON "PAY_EMP_CONT" (employer_id, started_at, ended_at);
-CREATE TABLE IF NOT EXISTS "PAY_PERIOD" (
+    ON "INC_EMP_CONT" (employer_id, started_at, ended_at);
+CREATE TABLE IF NOT EXISTS "INC_PAYROLL" (
     id                       BIGSERIAL                NOT NULL PRIMARY KEY,
-    employer_id              BIGINT                   NOT NULL REFERENCES "PAY_EMPLOYER"(id),
-    period_year              SMALLINT                 NOT NULL,
-    period_month             SMALLINT                 NOT NULL,
+    employer_id              BIGINT                   NOT NULL REFERENCES "INC_EMPLOYER"(id),
+    accrual_year              SMALLINT                 NOT NULL,
+    accrual_month             SMALLINT                 NOT NULL,
     payment_date             DATE                     NOT NULL,
     worked_days              SMALLINT                 NOT NULL DEFAULT 30,
     declared_net_pay_clp     NUMERIC(18,2),
     expected_net_pay_clp     NUMERIC(18,2),
     net_pay_difference_clp   NUMERIC(18,2),
-    pension_plan_id          BIGINT                   REFERENCES "PAY_PENS_PLAN"(id),
-    UNIQUE (employer_id, period_year, period_month)
+    pension_plan_id          BIGINT                   REFERENCES "INC_PENS_PLAN"(id),
+    UNIQUE (employer_id, accrual_year, accrual_month)
 );
 
 
-CREATE TABLE IF NOT EXISTS "PAY_PRD_HLTH" (
-    period_id      BIGINT NOT NULL REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
-    health_plan_id BIGINT NOT NULL REFERENCES "PAY_HLTH_PLAN"(id),
-    PRIMARY KEY (period_id, health_plan_id)
+CREATE TABLE IF NOT EXISTS "INC_PAY_PRD_HLTH" (
+    payroll_id      BIGINT NOT NULL REFERENCES "INC_PAYROLL"(id) ON DELETE CASCADE,
+    health_plan_id BIGINT NOT NULL REFERENCES "INC_HLTH_PLAN"(id),
+    PRIMARY KEY (payroll_id, health_plan_id)
 );
 
-CREATE TABLE IF NOT EXISTS "PAY_PRD_COMP" (
-    period_id                       BIGINT NOT NULL
-        REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS "INC_PAY_PRD_COMP" (
+    payroll_id                       BIGINT NOT NULL
+        REFERENCES "INC_PAYROLL"(id) ON DELETE CASCADE,
     complementary_insurance_plan_id BIGINT NOT NULL
-        REFERENCES "PAY_COMP_PLAN"(id),
-    PRIMARY KEY (period_id, complementary_insurance_plan_id)
+        REFERENCES "INC_COMP_PLAN"(id),
+    PRIMARY KEY (payroll_id, complementary_insurance_plan_id)
 );
 
-CREATE TABLE IF NOT EXISTS "PAY_CONCEPT" (
+CREATE TABLE IF NOT EXISTS "INC_PAY_CONCEPT" (
     id         BIGSERIAL    PRIMARY KEY,
     code       VARCHAR(40)  NOT NULL UNIQUE,
     name       VARCHAR(120) NOT NULL,
@@ -269,32 +269,32 @@ CREATE TABLE IF NOT EXISTS "PAY_CONCEPT" (
     is_taxable BOOLEAN      NOT NULL DEFAULT FALSE
 );
 
-CREATE TABLE IF NOT EXISTS "PAY_ITEM" (
+CREATE TABLE IF NOT EXISTS "INC_PAY_ITEM" (
     id         BIGSERIAL     PRIMARY KEY,
-    period_id  BIGINT        NOT NULL REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
-    concept_id BIGINT        NOT NULL REFERENCES "PAY_CONCEPT"(id),
+    payroll_id  BIGINT        NOT NULL REFERENCES "INC_PAYROLL"(id) ON DELETE CASCADE,
+    concept_id BIGINT        NOT NULL REFERENCES "INC_PAY_CONCEPT"(id),
     amount_clp NUMERIC(18,2) NOT NULL,
     notes      TEXT,
     created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_payroll_items_period_id  ON "PAY_ITEM"(period_id);
-CREATE INDEX IF NOT EXISTS idx_payroll_items_concept_id ON "PAY_ITEM"(concept_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_items_payroll_id  ON "INC_PAY_ITEM"(payroll_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_items_concept_id ON "INC_PAY_ITEM"(concept_id);
 
 -- PDF payslip templates (employer-specific raw_label -> concept_code mapping).
 -- Replaces pf-payroll's former git-tracked JSON files -- see
 -- pf-payroll/docs/proposals/pdf-template-management-recommendation.md.
 -- employer_id is required: a template may only be created for an employer
--- that already has a PAY_EMPLOYER row (i.e. after its first payroll import
+-- that already has a INC_EMPLOYER row (i.e. after its first payroll import
 -- has run at least once). There is deliberately no employer_name column --
 -- it used to be a literal-override fallback for when employer_id was NULL,
 -- but that case can no longer happen. The display name is always resolved
--- fresh from PAY_EMPLOYER.name via employer_id at read time, never copied
+-- fresh from INC_EMPLOYER.name via employer_id at read time, never copied
 -- into this table. See alembic/versions/0012_pdf_template_employer_id_required.py.
-CREATE TABLE IF NOT EXISTS "PAY_PDF_TEMPLATE" (
+CREATE TABLE IF NOT EXISTS "INC_PAY_PDF_TEMPLATE" (
     id                     BIGSERIAL     PRIMARY KEY,
     template_id            VARCHAR(80)   NOT NULL UNIQUE,
-    employer_id            BIGINT        NOT NULL REFERENCES "PAY_EMPLOYER"(id),
+    employer_id            BIGINT        NOT NULL REFERENCES "INC_EMPLOYER"(id),
     employer_match_pattern VARCHAR(500)  NOT NULL,
     version                INTEGER       NOT NULL DEFAULT 1 CHECK (version > 0),
     is_active              BOOLEAN       NOT NULL DEFAULT TRUE,
@@ -302,40 +302,40 @@ CREATE TABLE IF NOT EXISTS "PAY_PDF_TEMPLATE" (
     updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
--- kind is deliberately NOT a column here -- it would duplicate PAY_CONCEPT.kind
+-- kind is deliberately NOT a column here -- it would duplicate INC_PAY_CONCEPT.kind
 -- with no referential integrity tying the two copies together. The
--- application layer always resolves kind from PAY_CONCEPT at read time; see
+-- application layer always resolves kind from INC_PAY_CONCEPT at read time; see
 -- migration 0010.
--- concept_id (not concept_code): every other table referencing PAY_CONCEPT
--- does so by its surrogate id (see PAY_ITEM.concept_id above) -- concept_code
+-- concept_id (not concept_code): every other table referencing INC_PAY_CONCEPT
+-- does so by its surrogate id (see INC_PAY_ITEM.concept_id above) -- concept_code
 -- was an unintentional inconsistency, fixed in migration 0011. concept_code
 -- remains the business-facing identifier at the application layer (requests,
 -- responses, CONCEPT_MAP, the PDF-matching engine); only this storage column
 -- changed, resolved at the repository boundary.
-CREATE TABLE IF NOT EXISTS "PAY_PDF_TEMPLATE_FIELD" (
+CREATE TABLE IF NOT EXISTS "INC_INC_PAY_PDF_TEMPLATE_FIELD" (
     id                BIGSERIAL     PRIMARY KEY,
     template_id       BIGINT        NOT NULL
-        REFERENCES "PAY_PDF_TEMPLATE"(id) ON DELETE CASCADE,
+        REFERENCES "INC_PAY_PDF_TEMPLATE"(id) ON DELETE CASCADE,
     pdf_label_pattern VARCHAR(500)  NOT NULL,
-    concept_id        BIGINT        NOT NULL REFERENCES "PAY_CONCEPT"(id),
+    concept_id        BIGINT        NOT NULL REFERENCES "INC_PAY_CONCEPT"(id),
     confidence        NUMERIC(3,2)  NOT NULL DEFAULT 0.90 CHECK (confidence BETWEEN 0 AND 1)
 );
 
 CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_field_concept_id
-    ON "PAY_PDF_TEMPLATE_FIELD"(concept_id);
+    ON "INC_INC_PAY_PDF_TEMPLATE_FIELD"(concept_id);
 CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_field_template_id
-    ON "PAY_PDF_TEMPLATE_FIELD"(template_id);
-CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_is_active ON "PAY_PDF_TEMPLATE"(is_active);
+    ON "INC_INC_PAY_PDF_TEMPLATE_FIELD"(template_id);
+CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_is_active ON "INC_PAY_PDF_TEMPLATE"(is_active);
 
 -- ============================================================
 -- 4. Analytics
 -- ============================================================
-CREATE MATERIALIZED VIEW IF NOT EXISTS "PAY_MV_SUMARY" AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS "INC_MV_PAY_SUMMARY" AS
 SELECT
-    p.id           AS period_id,
+    p.id           AS payroll_id,
     p.employer_id,
-    p.period_year,
-    p.period_month,
+    p.accrual_year,
+    p.accrual_month,
     p.payment_date,
     SUM(CASE WHEN c.kind = 'income' AND c.is_taxable THEN i.amount_clp ELSE 0 END)
         AS taxable_income_clp,
@@ -343,9 +343,9 @@ SELECT
     SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS total_discounts_clp,
     SUM(CASE WHEN c.kind = 'income'   THEN i.amount_clp ELSE 0 END) -
     SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS net_pay_clp
-FROM "PAY_PERIOD"  p
-JOIN "PAY_ITEM"    i ON i.period_id  = p.id
-JOIN "PAY_CONCEPT" c ON c.id = i.concept_id
+FROM "INC_PAYROLL"  p
+JOIN "INC_PAY_ITEM"    i ON i.payroll_id  = p.id
+JOIN "INC_PAY_CONCEPT" c ON c.id = i.concept_id
 GROUP BY p.id;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_pay_mv_sumary_period ON "PAY_MV_SUMARY"(period_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pay_mv_sumary_period ON "INC_MV_PAY_SUMMARY"(payroll_id);

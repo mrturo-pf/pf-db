@@ -6,13 +6,13 @@
 -- ============================================================
 -- 1. Pension plans — one plan per AFP with real commission rates
 -- ============================================================
-INSERT INTO "PAY_PENS_PLAN" (institution_id, valid_from, valid_to, additional_rate)
+INSERT INTO "INC_PENS_PLAN" (institution_id, valid_from, valid_to, additional_rate)
 SELECT pi.id, DATE '2024-11-01', NULL, 0.0116
-FROM "PAY_PENS_INST" pi
+FROM "INC_PENS_INST" pi
 WHERE pi.code = 'AFP_PLANVITAL'
   AND NOT EXISTS (
       SELECT 1
-      FROM "PAY_PENS_PLAN" pp
+      FROM "INC_PENS_PLAN" pp
       WHERE pp.institution_id = pi.id
         AND pp.valid_from     = DATE '2024-11-01'
   );
@@ -34,15 +34,15 @@ WHERE pi.code = 'AFP_PLANVITAL'
 -- for every period from 2024-11 onward (get_health_plans_overlapping_month()
 -- deliberately returns every overlapping plan, so two 'Base' rows both
 -- contribute). This DELETE is idempotent and safe to keep permanently.
-DELETE FROM "PAY_HLTH_PLAN"
+DELETE FROM "INC_HLTH_PLAN"
 WHERE plan_name = 'Base'
   AND valid_from = '2024-11-01'
   AND valid_to IS NULL
   AND contracted_uf = 5.42;
 
-INSERT INTO "PAY_HLTH_PLAN" (institution_id, valid_from, valid_to, plan_name, contracted_uf)
+INSERT INTO "INC_HLTH_PLAN" (institution_id, valid_from, valid_to, plan_name, contracted_uf)
 SELECT hi.id, entry.valid_from, entry.valid_to, entry.plan_name, entry.contracted_uf
-FROM "PAY_HLTH_INST" hi
+FROM "INC_HLTH_INST" hi
 CROSS JOIN (VALUES
     (DATE '2025-02-25', DATE '2025-02-28', 'Base',        4.94::NUMERIC(10,4)),
     (DATE '2025-03-01', DATE '2025-07-31', 'Base',        4.94::NUMERIC(10,4)),
@@ -56,7 +56,7 @@ CROSS JOIN (VALUES
 WHERE hi.code = 'ESENCIAL'
   AND NOT EXISTS (
       SELECT 1
-      FROM "PAY_HLTH_PLAN" hp
+      FROM "INC_HLTH_PLAN" hp
       WHERE hp.institution_id = hi.id
         AND hp.valid_from     = entry.valid_from
         AND COALESCE(hp.plan_name, '') = entry.plan_name
@@ -65,7 +65,7 @@ WHERE hi.code = 'ESENCIAL'
 -- ============================================================
 -- 3. Contribution caps
 -- ============================================================
-INSERT INTO "PAY_CNTRB_CAP" (cap_type, valid_from, valid_to, value_uf) VALUES
+INSERT INTO "INC_CNTRB_CAP" (cap_type, valid_from, valid_to, value_uf) VALUES
     ('pension_health', DATE '2024-01-01', DATE '2024-12-31', 84.3000),
     ('pension_health', DATE '2025-01-01', DATE '2025-12-31', 87.8000),
     ('pension_health', DATE '2026-01-01', DATE '2026-01-31', 89.9000),
@@ -79,7 +79,7 @@ SET
 -- 4. Employers
 -- ============================================================
 
-INSERT INTO "PAY_EMPLOYER" (
+INSERT INTO "INC_EMPLOYER" (
     name,
     tax_id,
     country_code,
@@ -90,8 +90,8 @@ INSERT INTO "PAY_EMPLOYER" (
     payment_calendar_day_offset,
     payment_effective_on_processing_next_day,
     payment_fixed_day_roll,
-    first_increase_period_year,
-    first_increase_period_month,
+    first_increase_accrual_year,
+    first_increase_accrual_month,
     increase_frequency
 ) VALUES
     (
@@ -152,9 +152,9 @@ SET
     payment_fixed_day_roll = EXCLUDED.payment_fixed_day_roll;
 
 -- Employment history is stored separately from employer configuration.
-INSERT INTO "PAY_EMP_CONT" (employer_id, started_at, ended_at, is_indefinite, position)
+INSERT INTO "INC_EMP_CONT" (employer_id, started_at, ended_at, is_indefinite, position)
 SELECT e.id, entry.started_at, NULL, TRUE, NULL
-FROM "PAY_EMPLOYER" e
+FROM "INC_EMPLOYER" e
 JOIN (VALUES
     ('DALT-CONSULTORES', DATE '2016-07-18'),
     ('CLINICA-ALEMANA', DATE '2018-04-03'),
@@ -162,7 +162,7 @@ JOIN (VALUES
 ) AS entry(name, started_at) ON entry.name = e.name
 WHERE NOT EXISTS (
     SELECT 1
-    FROM "PAY_EMP_CONT" c
+    FROM "INC_EMP_CONT" c
     WHERE c.employer_id = e.id
       AND c.started_at = entry.started_at
 );
@@ -170,14 +170,14 @@ WHERE NOT EXISTS (
 -- ============================================================
 -- 5. Complementary insurance providers
 -- ============================================================
-INSERT INTO "PAY_COMP_PROV" (name) VALUES
+INSERT INTO "INC_COMP_PROV" (name) VALUES
     ('METLIFE')
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================
 -- 6. Complementary insurance plans
 -- ============================================================
-INSERT INTO "PAY_COMP_PLAN" (
+INSERT INTO "INC_COMP_PLAN" (
     provider_id,
     name,
     cost_type,
@@ -194,7 +194,7 @@ SELECT
     entry.cost_currency,
     entry.valid_from,
     entry.valid_to
-FROM "PAY_COMP_PROV" p
+FROM "INC_COMP_PROV" p
 CROSS JOIN (VALUES
     ('SEGURO DENTAL - PLAN AVANZADO',    'fixed_uf', 0.19::NUMERIC(12,4), 'UF', DATE '2025-02-01', NULL::DATE),
     ('SEGURO DE SALUD - PLAN DESTACADO', 'fixed_uf', 0.25::NUMERIC(12,4), 'UF', DATE '2025-01-01', DATE '2025-01-01'),
@@ -204,7 +204,7 @@ CROSS JOIN (VALUES
 WHERE p.name = 'METLIFE'
   AND NOT EXISTS (
       SELECT 1
-      FROM "PAY_COMP_PLAN" cp
+      FROM "INC_COMP_PLAN" cp
       WHERE cp.provider_id = p.id
         AND cp.name        = entry.name
         AND cp.valid_from  = entry.valid_from
@@ -220,9 +220,9 @@ WHERE p.name = 'METLIFE'
 -- This keeps a fresh `make seed-real` bootstrapped with the real template
 -- with no manual POST /payroll/templates call required to reach parity.
 -- No employer_name column (removed in migration 0012) -- employer_id is
--- required and always resolves the display name from PAY_EMPLOYER.name at
+-- required and always resolves the display name from INC_EMPLOYER.name at
 -- read time. See alembic/versions/0012_pdf_template_employer_id_required.py.
-INSERT INTO "PAY_PDF_TEMPLATE" (
+INSERT INTO "INC_PAY_PDF_TEMPLATE" (
     template_id, employer_id, employer_match_pattern, version, is_active
 )
 SELECT
@@ -231,7 +231,7 @@ SELECT
     '(?i)walmart-chile|walmart\s+chile',
     1,
     TRUE
-FROM "PAY_EMPLOYER" e
+FROM "INC_EMPLOYER" e
 WHERE e.name = 'WALMART-CHILE'
 ON CONFLICT (template_id) DO UPDATE
 SET
@@ -244,24 +244,24 @@ SET
 -- Fields are fully replaced (delete+insert) rather than individually
 -- upserted -- no natural per-field unique key exists, and this mirrors the
 -- same delete-then-reinsert convention pf-payroll's own import_rows()
--- already uses for PAY_ITEM rows (see spreadsheet-export-plan.md's
+-- already uses for INC_PAY_ITEM rows (see spreadsheet-export-plan.md's
 -- Correction 2). Safe here: this is seed data, re-run idempotently, not a
 -- live request path.
-DELETE FROM "PAY_PDF_TEMPLATE_FIELD"
+DELETE FROM "INC_INC_PAY_PDF_TEMPLATE_FIELD"
 WHERE template_id = (
-    SELECT id FROM "PAY_PDF_TEMPLATE" WHERE template_id = 'walmart-chile-v1'
+    SELECT id FROM "INC_PAY_PDF_TEMPLATE" WHERE template_id = 'walmart-chile-v1'
 );
 
 -- kind is not inserted here (no longer a column -- see migration 0010): it
--- is always resolved from PAY_CONCEPT.kind at read time, via concept_id.
+-- is always resolved from INC_PAY_CONCEPT.kind at read time, via concept_id.
 -- concept_id (not concept_code) since migration 0011 -- the VALUES literal
--- below still spells out the human-readable code; the JOIN to PAY_CONCEPT
+-- below still spells out the human-readable code; the JOIN to INC_PAY_CONCEPT
 -- resolves it to the real surrogate id the column actually stores.
-INSERT INTO "PAY_PDF_TEMPLATE_FIELD" (
+INSERT INTO "INC_INC_PAY_PDF_TEMPLATE_FIELD" (
     template_id, pdf_label_pattern, concept_id, confidence
 )
 SELECT t.id, f.pdf_label_pattern, c.id, f.confidence
-FROM "PAY_PDF_TEMPLATE" t
+FROM "INC_PAY_PDF_TEMPLATE" t
 CROSS JOIN (VALUES
     ('(?i)^SUELDO$',                                   'SALARY_BASE',                           0.90),
     ('(?i)GRATIFICACION\s+LEGAL',                      'LEGAL_GRATUITY',                        0.90),
@@ -284,5 +284,5 @@ CROSS JOIN (VALUES
     ('(?i)DIF\.?\s*SUELDO\s+MES\s+ANTERIOR',           'PRIOR_SALARY_DIFFERENCE',               0.85),
     ('(?i)^CCAF\s+.*VIGENTE$',                         'CCAF_LOAN',                             0.90)
 ) AS f(pdf_label_pattern, concept_code, confidence)
-JOIN "PAY_CONCEPT" c ON c.code = f.concept_code
+JOIN "INC_PAY_CONCEPT" c ON c.code = f.concept_code
 WHERE t.template_id = 'walmart-chile-v1';
