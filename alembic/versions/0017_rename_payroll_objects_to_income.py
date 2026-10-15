@@ -63,6 +63,46 @@ def _assert_objects_exist(names: tuple[str, ...]) -> None:
         raise RuntimeError(f"Migration baseline is missing objects: {', '.join(missing)}")
 
 
+def _assert_objects_absent(names: tuple[str, ...]) -> None:
+    """Fail before mutation when a target object would be overwritten."""
+    bind = op.get_bind()
+    existing = [
+        name
+        for name in names
+        if bind.execute(
+            text("SELECT to_regclass(format('%I.%I', 'public', CAST(:object_name AS text)))"),
+            {"object_name": name},
+        ).scalar_one_or_none()
+        is not None
+    ]
+    if existing:
+        raise RuntimeError(f"Migration target objects already exist: {', '.join(existing)}")
+
+
+def _assert_columns_exist(columns: tuple[tuple[str, str], ...]) -> None:
+    """Fail before mutation when an expected source column is absent."""
+    bind = op.get_bind()
+    missing = [
+        f"{table}.{column}"
+        for table, column in columns
+        if bind.execute(
+            text(
+                """
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = CAST(:table_name AS text)
+                  AND column_name = CAST(:column_name AS text)
+                """
+            ),
+            {"table_name": table, "column_name": column},
+        ).scalar_one_or_none()
+        is None
+    ]
+    if missing:
+        raise RuntimeError(f"Migration source columns are missing: {', '.join(missing)}")
+
+
 def _rename_summary_view(
     view_name: str,
     payroll_table: str,
@@ -73,7 +113,6 @@ def _rename_summary_view(
     month: str,
 ) -> None:
     """Create the summary view using the current schema vocabulary."""
-    op.execute(f'DROP MATERIALIZED VIEW IF EXISTS "{view_name}"')
     op.execute(
         f'''
         CREATE MATERIALIZED VIEW "{view_name}" AS
@@ -108,6 +147,9 @@ def upgrade() -> None:
     """Rename payroll objects and semantic period columns to INC names."""
     _assert_objects_exist(tuple(name for name, _ in _TABLE_RENAMES))
     _assert_objects_exist(("PAY_MV_SUMARY",))
+    _assert_objects_absent(tuple(target for _, target in _TABLE_RENAMES))
+    _assert_objects_absent(("INC_MV_PAY_SUMMARY",))
+    _assert_columns_exist(tuple((table, source) for table, source, _ in _COLUMN_RENAMES))
 
     op.execute('DROP MATERIALIZED VIEW "PAY_MV_SUMARY"')
     op.execute('DROP INDEX IF EXISTS "idx_pay_mv_sumary_period"')
@@ -134,6 +176,14 @@ def downgrade() -> None:
     """Restore PAY names and the original summary-view vocabulary."""
     _assert_objects_exist(tuple(target for _, target in _TABLE_RENAMES))
     _assert_objects_exist(("INC_MV_PAY_SUMMARY",))
+    _assert_objects_absent(tuple(source for source, _ in _TABLE_RENAMES))
+    _assert_objects_absent(("PAY_MV_SUMARY",))
+    _assert_columns_exist(
+        tuple(
+            (dict(_TABLE_RENAMES)[table], target)
+            for table, _, target in _COLUMN_RENAMES
+        )
+    )
 
     op.execute('DROP MATERIALIZED VIEW "INC_MV_PAY_SUMMARY"')
     op.execute('DROP INDEX IF EXISTS "idx_inc_mv_pay_summary_payroll_id"')
