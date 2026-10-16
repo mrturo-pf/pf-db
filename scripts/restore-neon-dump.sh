@@ -74,6 +74,6 @@ sed '/^SET transaction_timeout/d' "$DUMP_FILE" \
 echo ""
 echo "Restore complete. Quick sanity check:"
 $NERDCTL_BIN compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -c \
-  "SELECT 'PAY_EMPLOYER' AS table_name, count(*) FROM \"PAY_EMPLOYER\"
-   UNION ALL SELECT 'PAY_PENS_PLAN', count(*) FROM \"PAY_PENS_PLAN\"
+  "SELECT 'INC_EMPLOYER' AS table_name, count(*) FROM \"INC_EMPLOYER\"
+   UNION ALL SELECT 'INC_PENS_PLAN', count(*) FROM \"INC_PENS_PLAN\"
    UNION ALL SELECT 'RAT_CURRENCY', count(*) FROM \"RAT_CURRENCY\";"
