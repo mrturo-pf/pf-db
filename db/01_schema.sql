@@ -191,10 +191,10 @@ CREATE TABLE IF NOT EXISTS "INC_EMPLOYER" (
     name                                     VARCHAR(120)               NOT NULL UNIQUE,
     tax_id                                   VARCHAR(32),
     country_code                             CHAR(2)                    NOT NULL DEFAULT 'CL',
-    first_increase_accrual_year               SMALLINT
-        CHECK (first_increase_accrual_year BETWEEN 1990 AND 2100),
-    first_increase_accrual_month              SMALLINT
-        CHECK (first_increase_accrual_month BETWEEN 1 AND 12),
+    first_increase_period_year               SMALLINT
+        CHECK (first_increase_period_year BETWEEN 1990 AND 2100),
+    first_increase_period_month              SMALLINT
+        CHECK (first_increase_period_month BETWEEN 1 AND 12),
     increase_frequency                       SMALLINT
         CHECK (increase_frequency > 0),
     payment_date_rule                        employer_payment_date_rule NOT NULL

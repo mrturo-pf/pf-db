@@ -90,8 +90,8 @@ INSERT INTO "INC_EMPLOYER" (
     payment_calendar_day_offset,
     payment_effective_on_processing_next_day,
     payment_fixed_day_roll,
-    first_increase_accrual_year,
-    first_increase_accrual_month,
+    first_increase_period_year,
+    first_increase_period_month,
     increase_frequency
 ) VALUES
     (
