@@ -133,7 +133,10 @@ jobs:
           import asyncpg
 
           async def main():
-              connection = await asyncpg.connect(os.environ["DATABASE_URL"])
+              dsn = os.environ["DATABASE_URL"].replace(
+                  "postgresql+asyncpg://", "postgresql://", 1
+              )
+              connection = await asyncpg.connect(dsn)
               try:
                   role = await connection.fetchval("SELECT current_user")
                   owned = await connection.fetchval(
