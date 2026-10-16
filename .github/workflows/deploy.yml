@@ -123,14 +123,53 @@ jobs:
           working-directory: '.'
           install-extras: '[dev]'
 
+      - name: Validate migration identity
+        env:
+          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          import asyncio
+          import os
+          import asyncpg
+
+          async def main():
+              connection = await asyncpg.connect(os.environ["DATABASE_URL"])
+              try:
+                  role = await connection.fetchval("SELECT current_user")
+                  owned = await connection.fetchval(
+                      """
+                      SELECT count(*)
+                      FROM pg_class
+                      WHERE relname IN ('PAY_PENS_INST', 'INC_PENS_INST')
+                        AND relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+                      """
+                  )
+                  print(f"Migration role: {role}; owned target tables: {owned}")
+                  if not owned:
+                      raise SystemExit("Migration identity does not own the target schema objects")
+              finally:
+                  await connection.close()
+
+          asyncio.run(main())
+          PY
+
       - name: Run migrations
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: alembic upgrade head
+          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          error_file="$(mktemp)"
+          trap 'rm -f "$error_file"' EXIT
+          if ! alembic upgrade head 2>"$error_file"; then
+            error_summary="$(tr '\n' ' ' <"$error_file" | sed -E 's#postgres(ql\+asyncpg)?://[^ ]+#postgresql://[REDACTED]#g' | tr -s ' ' | cut -c1-1800)"
+            echo "::error title=Production migration failure::${error_summary}"
+            cat "$error_file"
+            exit 1
+          fi
 
       - name: Verify DB is at migration head
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
         run: make migration-check
 
       - name: Install psql client
@@ -138,7 +177,7 @@ jobs:
 
       - name: Seed base data
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
         run: |
           # psql (libpq) needs postgresql:// and sslmode=, not ssl=
           PSQL_URL="${DATABASE_URL/postgresql+asyncpg/postgresql}"
@@ -148,7 +187,7 @@ jobs:
       - name: Seed real data (production)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
         run: |
           PSQL_URL="${DATABASE_URL/postgresql+asyncpg/postgresql}"
           PSQL_URL="${PSQL_URL/ssl=require/sslmode=require}"

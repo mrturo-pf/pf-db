@@ -67,7 +67,8 @@ The `test` job validates migrations against a fresh PostgreSQL instance.
    - Sets credentials: `pf_db` / `pf_db` / `pf_db`
 
 5. **Run migrations**
-   - Sets `DATABASE_URL` environment variable
+   - Sets `DATABASE_URL` from the migration-owner secret `MIGRATION_DATABASE_URL`
+   - Validates the effective role owns the target schema objects
    - Runs `alembic upgrade head`
    - **This is the critical validation step** - if migrations fail, PR is blocked
 
@@ -110,7 +111,7 @@ region: us-central1
 image: us-central1-docker.pkg.dev/PROJECT/pf-db/app:latest
 command: ["alembic", "upgrade", "head"]
 env:
-  DATABASE_URL: <secret-from-secret-manager>
+  DATABASE_URL: <migration-owner-secret; never a service runtime credential>
 ```
 
 ### Execution
