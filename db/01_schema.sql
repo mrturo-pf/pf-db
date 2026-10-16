@@ -312,7 +312,7 @@ CREATE TABLE IF NOT EXISTS "INC_PAY_PDF_TEMPLATE" (
 -- remains the business-facing identifier at the application layer (requests,
 -- responses, CONCEPT_MAP, the PDF-matching engine); only this storage column
 -- changed, resolved at the repository boundary.
-CREATE TABLE IF NOT EXISTS "INC_INC_PAY_PDF_TEMPLATE_FIELD" (
+CREATE TABLE IF NOT EXISTS "INC_PAY_PDF_TEMPLATE_FIELD" (
     id                BIGSERIAL     PRIMARY KEY,
     template_id       BIGINT        NOT NULL
         REFERENCES "INC_PAY_PDF_TEMPLATE"(id) ON DELETE CASCADE,
@@ -322,9 +322,9 @@ CREATE TABLE IF NOT EXISTS "INC_INC_PAY_PDF_TEMPLATE_FIELD" (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_field_concept_id
-    ON "INC_INC_PAY_PDF_TEMPLATE_FIELD"(concept_id);
+    ON "INC_PAY_PDF_TEMPLATE_FIELD"(concept_id);
 CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_field_template_id
-    ON "INC_INC_PAY_PDF_TEMPLATE_FIELD"(template_id);
+    ON "INC_PAY_PDF_TEMPLATE_FIELD"(template_id);
 CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_is_active ON "INC_PAY_PDF_TEMPLATE"(is_active);
 
 -- ============================================================

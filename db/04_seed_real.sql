@@ -247,7 +247,7 @@ SET
 -- already uses for INC_PAY_ITEM rows (see spreadsheet-export-plan.md's
 -- Correction 2). Safe here: this is seed data, re-run idempotently, not a
 -- live request path.
-DELETE FROM "INC_INC_PAY_PDF_TEMPLATE_FIELD"
+DELETE FROM "INC_PAY_PDF_TEMPLATE_FIELD"
 WHERE template_id = (
     SELECT id FROM "INC_PAY_PDF_TEMPLATE" WHERE template_id = 'walmart-chile-v1'
 );
@@ -257,7 +257,7 @@ WHERE template_id = (
 -- concept_id (not concept_code) since migration 0011 -- the VALUES literal
 -- below still spells out the human-readable code; the JOIN to INC_PAY_CONCEPT
 -- resolves it to the real surrogate id the column actually stores.
-INSERT INTO "INC_INC_PAY_PDF_TEMPLATE_FIELD" (
+INSERT INTO "INC_PAY_PDF_TEMPLATE_FIELD" (
     template_id, pdf_label_pattern, concept_id, confidence
 )
 SELECT t.id, f.pdf_label_pattern, c.id, f.confidence
