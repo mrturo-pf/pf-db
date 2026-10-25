@@ -161,6 +161,14 @@ in the same migration chain. For example, revision `0019` restores `SELECT` on
 `INC_PAYROLL`, which avoids assuming a provider-specific role name. Do not grant
 access to `PUBLIC` or use a migration-owner credential for service traffic.
 
+### Employer-scoped contract intervals
+
+Employment-contract date ranges may overlap across different employers. The
+exclusion constraint must compare both `employer_id` equality and date-range
+overlap; a global date-range exclusion incorrectly rejects valid contracts for
+unrelated employers. Revision `0020` enforces this scope in production and the
+base DDL.
+
 ### Step 4: Test the migration locally
 
 ```bash
