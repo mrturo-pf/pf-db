@@ -157,9 +157,9 @@ CREATE INDEX IF NOT EXISTS idx_example_name ON example(name);
 When a migration drops and recreates a table or materialized view, PostgreSQL does
 not preserve grants from the old object. Re-apply the least-privilege runtime grant
 in the same migration chain. For example, revision `0019` restores `SELECT` on
-`INC_MV_PAY_SUMMARY` for the `pf_db` runtime connection used by `pf-svc-income`.
-Do not grant access to `PUBLIC` or use a migration-owner credential for service
-traffic.
+`INC_MV_PAY_SUMMARY` for existing login roles that already have `SELECT` on
+`INC_PAYROLL`, which avoids assuming a provider-specific role name. Do not grant
+access to `PUBLIC` or use a migration-owner credential for service traffic.
 
 ### Step 4: Test the migration locally
 
