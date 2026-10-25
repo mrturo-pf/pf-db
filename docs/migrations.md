@@ -152,6 +152,15 @@ CREATE INDEX IF NOT EXISTS idx_example_name ON example(name);
 
 **Important:** Use `CREATE ... IF NOT EXISTS` to make it idempotent.
 
+### Runtime grants for recreated objects
+
+When a migration drops and recreates a table or materialized view, PostgreSQL does
+not preserve grants from the old object. Re-apply the least-privilege runtime grant
+in the same migration chain. For example, revision `0019` restores `SELECT` on
+`INC_MV_PAY_SUMMARY` for the `pf_db` runtime connection used by `pf-svc-income`.
+Do not grant access to `PUBLIC` or use a migration-owner credential for service
+traffic.
+
 ### Step 4: Test the migration locally
 
 ```bash
