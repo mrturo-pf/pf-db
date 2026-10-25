@@ -1,4 +1,4 @@
-"""Grant the runtime database user access to the income summary view.
+"""Grant runtime roles access to the income summary view.
 
 Revision ID: 0019
 Revises: 0018
