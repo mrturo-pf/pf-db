@@ -167,7 +167,8 @@ Employment-contract date ranges may overlap across different employers. The
 exclusion constraint must compare both `employer_id` equality and date-range
 overlap; a global date-range exclusion incorrectly rejects valid contracts for
 unrelated employers. Revision `0020` enforces this scope in production and the
-base DDL.
+base DDL. Revision `0021` reapplies the materialized-view grant after provider
+runtime roles are provisioned, so grants added after revision `0019` are covered.
 
 ### Step 4: Test the migration locally
 
