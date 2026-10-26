@@ -4,24 +4,7 @@
 -- ============================================================
 
 -- ============================================================
--- 1. Economic indices used by local API smoke tests
--- ============================================================
-INSERT INTO "RAT_ECON_INDEX" (
-    code, accrual_year, accrual_month, index_value, source
-) VALUES
-    ('UF',  2026, 1, 39000.000000, 'test'),
-    ('UF',  2026, 2, 39100.000000, 'test'),
-    ('UF',  2026, 3, 39200.000000, 'test'),
-    ('UTM', 2026, 1,    65000.000000, 'test'),
-    ('UTM', 2026, 2,    65100.000000, 'test'),
-    ('UTM', 2026, 3,    65200.000000, 'test'),
-    ('UF',  2027, 1, 40000.000000, 'test')
-ON CONFLICT (code, accrual_year, accrual_month) DO UPDATE
-SET index_value = EXCLUDED.index_value,
-    source = EXCLUDED.source;
-
--- ============================================================
--- 2. Exchange rates used by local payroll validation tests
+-- 1. Exchange rates used by local payroll validation tests
 -- ============================================================
 INSERT INTO "RAT_EXCH_RATE" (currency_code, rate_date, value_clp, source)
 VALUES ('UF', DATE '2027-01-31', 40000.000000, 'test')
@@ -30,7 +13,7 @@ SET value_clp = EXCLUDED.value_clp,
     source = EXCLUDED.source;
 
 -- ============================================================
--- 3. Pension plans (one base plan per institution)
+-- 2. Pension plans (one base plan per institution)
 -- ============================================================
 INSERT INTO "INC_PENS_PLAN" (institution_id, valid_from, valid_to, additional_rate)
 SELECT pi.id, DATE '2026-01-01', NULL, 0
@@ -44,7 +27,7 @@ WHERE NOT EXISTS (
 );
 
 -- ============================================================
--- 4. Health plans (one base plan per institution)
+-- 3. Health plans (one base plan per institution)
 -- ============================================================
 INSERT INTO "INC_HLTH_PLAN" (institution_id, valid_from, valid_to, plan_name, contracted_uf)
 SELECT hi.id, DATE '2026-01-01', NULL, 'Base', 0
@@ -59,7 +42,7 @@ WHERE NOT EXISTS (
 );
 
 -- ============================================================
--- 5. Complementary insurance providers
+-- 4. Complementary insurance providers
 -- ============================================================
 INSERT INTO "INC_COMP_PROV" (name) VALUES
     ('SEGUROS CAJA'),
@@ -68,7 +51,7 @@ INSERT INTO "INC_COMP_PROV" (name) VALUES
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================
--- 6. Complementary insurance plans
+-- 5. Complementary insurance plans
 -- ============================================================
 INSERT INTO "INC_COMP_PLAN" (
     provider_id, name, cost_type, cost_value, cost_currency, valid_from, valid_to
