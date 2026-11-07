@@ -248,13 +248,13 @@ CREATE TABLE IF NOT EXISTS "INC_PAYROLL" (
 );
 
 
-CREATE TABLE IF NOT EXISTS "INC_INC_PRD_HLTH" (
+CREATE TABLE IF NOT EXISTS "INC_PAY_PRD_HLTH" (
     payroll_id      BIGINT NOT NULL REFERENCES "INC_PAYROLL"(id) ON DELETE CASCADE,
     health_plan_id BIGINT NOT NULL REFERENCES "INC_HLTH_PLAN"(id),
     PRIMARY KEY (payroll_id, health_plan_id)
 );
 
-CREATE TABLE IF NOT EXISTS "INC_INC_PRD_COMP" (
+CREATE TABLE IF NOT EXISTS "INC_PAY_PRD_COMP" (
     payroll_id                       BIGINT NOT NULL
         REFERENCES "INC_PAYROLL"(id) ON DELETE CASCADE,
     complementary_insurance_plan_id BIGINT NOT NULL
@@ -262,7 +262,7 @@ CREATE TABLE IF NOT EXISTS "INC_INC_PRD_COMP" (
     PRIMARY KEY (payroll_id, complementary_insurance_plan_id)
 );
 
-CREATE TABLE IF NOT EXISTS "INC_INC_CONCEPT" (
+CREATE TABLE IF NOT EXISTS "INC_PAY_CONCEPT" (
     id         BIGSERIAL    PRIMARY KEY,
     code       VARCHAR(40)  NOT NULL UNIQUE,
     name       VARCHAR(120) NOT NULL,
@@ -270,17 +270,17 @@ CREATE TABLE IF NOT EXISTS "INC_INC_CONCEPT" (
     is_taxable BOOLEAN      NOT NULL DEFAULT FALSE
 );
 
-CREATE TABLE IF NOT EXISTS "INC_INC_ITEM" (
+CREATE TABLE IF NOT EXISTS "INC_PAY_ITEM" (
     id         BIGSERIAL     PRIMARY KEY,
     payroll_id  BIGINT        NOT NULL REFERENCES "INC_PAYROLL"(id) ON DELETE CASCADE,
-    concept_id BIGINT        NOT NULL REFERENCES "INC_INC_CONCEPT"(id),
+    concept_id BIGINT        NOT NULL REFERENCES "INC_PAY_CONCEPT"(id),
     amount_clp NUMERIC(18,2) NOT NULL,
     notes      TEXT,
     created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_payroll_items_payroll_id  ON "INC_INC_ITEM"(payroll_id);
-CREATE INDEX IF NOT EXISTS idx_payroll_items_concept_id ON "INC_INC_ITEM"(concept_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_items_payroll_id  ON "INC_PAY_ITEM"(payroll_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_items_concept_id ON "INC_PAY_ITEM"(concept_id);
 
 -- PDF payslip templates (employer-specific raw_label -> concept_code mapping).
 -- Replaces pf-svc-income's former git-tracked JSON files -- see
@@ -292,7 +292,7 @@ CREATE INDEX IF NOT EXISTS idx_payroll_items_concept_id ON "INC_INC_ITEM"(concep
 -- but that case can no longer happen. The display name is always resolved
 -- fresh from INC_EMPLOYER.name via employer_id at read time, never copied
 -- into this table. See alembic/versions/0012_pdf_template_employer_id_required.py.
-CREATE TABLE IF NOT EXISTS "INC_INC_PDF_TEMPLATE" (
+CREATE TABLE IF NOT EXISTS "INC_PAY_PDF_TEMPLATE" (
     id                     BIGSERIAL     PRIMARY KEY,
     template_id            VARCHAR(80)   NOT NULL UNIQUE,
     employer_id            BIGINT        NOT NULL REFERENCES "INC_EMPLOYER"(id),
@@ -303,30 +303,30 @@ CREATE TABLE IF NOT EXISTS "INC_INC_PDF_TEMPLATE" (
     updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
--- kind is deliberately NOT a column here -- it would duplicate INC_INC_CONCEPT.kind
+-- kind is deliberately NOT a column here -- it would duplicate INC_PAY_CONCEPT.kind
 -- with no referential integrity tying the two copies together. The
--- application layer always resolves kind from INC_INC_CONCEPT at read time; see
+-- application layer always resolves kind from INC_PAY_CONCEPT at read time; see
 -- migration 0010.
--- concept_id (not concept_code): every other table referencing INC_INC_CONCEPT
--- does so by its surrogate id (see INC_INC_ITEM.concept_id above) -- concept_code
+-- concept_id (not concept_code): every other table referencing INC_PAY_CONCEPT
+-- does so by its surrogate id (see INC_PAY_ITEM.concept_id above) -- concept_code
 -- was an unintentional inconsistency, fixed in migration 0011. concept_code
 -- remains the business-facing identifier at the application layer (requests,
 -- responses, CONCEPT_MAP, the PDF-matching engine); only this storage column
 -- changed, resolved at the repository boundary.
-CREATE TABLE IF NOT EXISTS "INC_INC_PDF_TEMPLATE_FIELD" (
+CREATE TABLE IF NOT EXISTS "INC_PAY_PDF_TEMPLATE_FIELD" (
     id                BIGSERIAL     PRIMARY KEY,
     template_id       BIGINT        NOT NULL
-        REFERENCES "INC_INC_PDF_TEMPLATE"(id) ON DELETE CASCADE,
+        REFERENCES "INC_PAY_PDF_TEMPLATE"(id) ON DELETE CASCADE,
     pdf_label_pattern VARCHAR(500)  NOT NULL,
-    concept_id        BIGINT        NOT NULL REFERENCES "INC_INC_CONCEPT"(id),
+    concept_id        BIGINT        NOT NULL REFERENCES "INC_PAY_CONCEPT"(id),
     confidence        NUMERIC(3,2)  NOT NULL DEFAULT 0.90 CHECK (confidence BETWEEN 0 AND 1)
 );
 
 CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_field_concept_id
-    ON "INC_INC_PDF_TEMPLATE_FIELD"(concept_id);
+    ON "INC_PAY_PDF_TEMPLATE_FIELD"(concept_id);
 CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_field_template_id
-    ON "INC_INC_PDF_TEMPLATE_FIELD"(template_id);
-CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_is_active ON "INC_INC_PDF_TEMPLATE"(is_active);
+    ON "INC_PAY_PDF_TEMPLATE_FIELD"(template_id);
+CREATE INDEX IF NOT EXISTS idx_pay_pdf_template_is_active ON "INC_PAY_PDF_TEMPLATE"(is_active);
 
 -- ============================================================
 -- 4. Analytics
@@ -345,8 +345,8 @@ SELECT
     SUM(CASE WHEN c.kind = 'income'   THEN i.amount_clp ELSE 0 END) -
     SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS net_pay_clp
 FROM "INC_PAYROLL"  p
-JOIN "INC_INC_ITEM"    i ON i.payroll_id  = p.id
-JOIN "INC_INC_CONCEPT" c ON c.id = i.concept_id
+JOIN "INC_PAY_ITEM"    i ON i.payroll_id  = p.id
+JOIN "INC_PAY_CONCEPT" c ON c.id = i.concept_id
 GROUP BY p.id;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pay_mv_sumary_period ON "INC_MV_PAY_SUMMARY"(payroll_id);

@@ -222,7 +222,7 @@ WHERE p.name = 'METLIFE'
 -- No employer_name column (removed in migration 0012) -- employer_id is
 -- required and always resolves the display name from INC_EMPLOYER.name at
 -- read time. See alembic/versions/0012_pdf_template_employer_id_required.py.
-INSERT INTO "INC_INC_PDF_TEMPLATE" (
+INSERT INTO "INC_PAY_PDF_TEMPLATE" (
     template_id, employer_id, employer_match_pattern, version, is_active
 )
 SELECT
@@ -244,24 +244,24 @@ SET
 -- Fields are fully replaced (delete+insert) rather than individually
 -- upserted -- no natural per-field unique key exists, and this mirrors the
 -- same delete-then-reinsert convention pf-svc-income's own import_rows()
--- already uses for INC_INC_ITEM rows (see spreadsheet-export-plan.md's
+-- already uses for INC_PAY_ITEM rows (see spreadsheet-export-plan.md's
 -- Correction 2). Safe here: this is seed data, re-run idempotently, not a
 -- live request path.
-DELETE FROM "INC_INC_PDF_TEMPLATE_FIELD"
+DELETE FROM "INC_PAY_PDF_TEMPLATE_FIELD"
 WHERE template_id = (
-    SELECT id FROM "INC_INC_PDF_TEMPLATE" WHERE template_id = 'walmart-chile-v1'
+    SELECT id FROM "INC_PAY_PDF_TEMPLATE" WHERE template_id = 'walmart-chile-v1'
 );
 
 -- kind is not inserted here (no longer a column -- see migration 0010): it
--- is always resolved from INC_INC_CONCEPT.kind at read time, via concept_id.
+-- is always resolved from INC_PAY_CONCEPT.kind at read time, via concept_id.
 -- concept_id (not concept_code) since migration 0011 -- the VALUES literal
--- below still spells out the human-readable code; the JOIN to INC_INC_CONCEPT
+-- below still spells out the human-readable code; the JOIN to INC_PAY_CONCEPT
 -- resolves it to the real surrogate id the column actually stores.
-INSERT INTO "INC_INC_PDF_TEMPLATE_FIELD" (
+INSERT INTO "INC_PAY_PDF_TEMPLATE_FIELD" (
     template_id, pdf_label_pattern, concept_id, confidence
 )
 SELECT t.id, f.pdf_label_pattern, c.id, f.confidence
-FROM "INC_INC_PDF_TEMPLATE" t
+FROM "INC_PAY_PDF_TEMPLATE" t
 CROSS JOIN (VALUES
     ('(?i)^SUELDO$',                                   'SALARY_BASE',                           0.90),
     ('(?i)GRATIFICACION\s+LEGAL',                      'LEGAL_GRATUITY',                        0.90),
@@ -284,5 +284,5 @@ CROSS JOIN (VALUES
     ('(?i)DIF\.?\s*SUELDO\s+MES\s+ANTERIOR',           'PRIOR_SALARY_DIFFERENCE',               0.85),
     ('(?i)^CCAF\s+.*VIGENTE$',                         'CCAF_LOAN',                             0.90)
 ) AS f(pdf_label_pattern, concept_code, confidence)
-JOIN "INC_INC_CONCEPT" c ON c.code = f.concept_code
+JOIN "INC_PAY_CONCEPT" c ON c.code = f.concept_code
 WHERE t.template_id = 'walmart-chile-v1';
