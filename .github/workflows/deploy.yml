@@ -143,7 +143,7 @@ jobs:
                       """
                       SELECT count(*)
                       FROM pg_class
-                      WHERE relname IN ('INC_PENS_INST', 'INC_PENS_INST')
+                      WHERE relname IN ('INC_PENS_INST', 'INC_EMPLOYER')
                         AND relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
                       """
                   )
