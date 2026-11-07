@@ -22,8 +22,11 @@ alembic/
 └── versions/
     ├── 0001_rates_schema.py   # currencies, exchange_rates, economic_indices, income_tax_brackets
     ├── 0002_payroll_schema.py # pension/health/contribution tables + employers + payroll core + mv
-    └── 0003_rename_tables_service_prefix.py # renames all tables above to RAT_*/PAY_* prefixes
+    ├── 0003_rename_tables_service_prefix.py # historical RAT_*/INC_* prefix migration
+    └── 0017_rename_payroll_objects_to_income.py # current INC_* → INC_* migration
 ```
+
+Migration `0017_rename_payroll_objects_to_income.py` is the current service-identity/schema boundary: production payroll objects use `INC_*`, while `INC_*` references in migrations `0003`–`0012` describe the historical pre-rename schema and must remain replayable.
 
 ### File naming convention
 
@@ -77,7 +80,7 @@ The policy is:
 
 - PostgreSQL identifiers must remain within 63 UTF-8 bytes;
 - tables and materialized views use uppercase ASCII names of at most 30 characters
-  with an explicit `RAT_`, `PAY_`, or `INC_` prefix;
+  with an explicit `RAT_`, `INC_`, or `INC_` prefix;
 - sequences, indexes, constraints, schemas, and other auxiliary names must use
   explicit deterministic names below the 63-byte ceiling;
 - automatic PostgreSQL identifier truncation is forbidden;
@@ -338,12 +341,12 @@ Any Cloud Run deployment that consumes this DB must run `alembic upgrade head` b
 ```
 1. pf-db Cloud Run Job: alembic upgrade head
 2. pf-rates Cloud Run Service: starts receiving traffic
-3. pf-payroll Cloud Run Service: starts receiving traffic
+3. pf-svc-income Cloud Run Service: starts receiving traffic
 ```
 
 ### 2. No application code
 
-This repo has no `src/`, no FastAPI routes, no business logic. ORM models live in the consuming microservices (pf-rates, pf-payroll).
+This repo has no `src/`, no FastAPI routes, no business logic. ORM models live in the consuming microservices (pf-rates, pf-svc-income).
 
 ### 3. No autogenerate
 
@@ -459,7 +462,7 @@ def upgrade() -> None:
 ### Mistake 2: Using application logic
 
 ```python
-# Wrong (imports from pf-payroll)
+# Wrong (imports from pf-svc-income)
 from payroll.domain.payroll_period import PayrollPeriod
 
 def upgrade() -> None:
@@ -488,7 +491,7 @@ Both files must stay in sync.
 ### Mistake 4: Breaking changes without coordination
 
 ```python
-# Wrong (breaks pf-payroll immediately)
+# Wrong (breaks pf-svc-income immediately)
 def upgrade() -> None:
     op.execute("DROP COLUMN critical_field;")
 ```
@@ -502,7 +505,7 @@ def upgrade() -> None:
     op.execute("UPDATE users SET new_field = old_field;")
 ```
 
-**Application change:** Update pf-payroll to use `new_field`
+**Application change:** Update pf-svc-income to use `new_field`
 
 **Migration 2:** Drop old column (after application deployed)
 ```python
@@ -536,7 +539,7 @@ jobs:
   
   deploy-services:
     needs: migrate
-    # ... deploy pf-rates and pf-payroll
+    # ... deploy pf-rates and pf-svc-income
 ```
 
 The Cloud Run Job:

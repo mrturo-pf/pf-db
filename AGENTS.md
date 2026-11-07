@@ -19,7 +19,7 @@ pf-db/
 │   └── versions/
 │       ├── 0001_rates_schema.py   # currencies, exchange_rates, economic_indices, income_tax_brackets
 │       ├── 0002_payroll_schema.py # pension/health/contribution tables + employers + payroll core + mv
-│       ├── 0003_rename_tables_service_prefix.py # renames all tables above to RAT_*/PAY_* prefixes
+│       ├── 0003_rename_tables_service_prefix.py # historical RAT_*/INC_* prefix migration; current payroll objects use INC_*
 │       └── 0004_export_jobs_table.py # RAT_EXPORT_JOB: async CSV export job tracking
 ├── db/
 │   ├── 01_schema.sql              # idempotent DDL reference (do NOT run in production)
@@ -34,9 +34,10 @@ pf-db/
 
 ## Table ownership
 
-All tables follow the `RAT_*` (pf-rates) / `PAY_*` (pf-payroll) naming convention
-introduced in migration `0003` (uppercase, service prefix, maximum 30 ASCII
-characters for table/materialized-view names). PostgreSQL's technical ceiling is
+Current tables follow the `RAT_*` (pf-rates) / `INC_*` (pf-svc-income) naming convention
+introduced by the production schema migration (uppercase, service prefix, maximum 30 ASCII
+characters for table/materialized-view names). Migration `0003` is retained as historical
+context for the original `INC_*` names. PostgreSQL's technical ceiling is
 63 bytes for every identifier; indexes, constraints, sequences, and other
 auxiliary identifiers must remain below that ceiling with explicit names. See
 [`docs/tables.md`](docs/tables.md) for the full list with schemas and sample data.
@@ -44,7 +45,7 @@ auxiliary identifiers must remain below that ceiling with explicit names. See
 | Tables | Domain |
 |---|---|
 | `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT`, `RAT_EXPORT_JOB` | financial rates |
-| 15 payroll tables + `PAY_MV_SUMARY` materialized view | payroll |
+| 15 payroll tables + `INC_MV_PAY_SUMMARY` materialized view | payroll |
 
 Ownership means: only the microservices that own a domain write to those tables.
 Any microservice may read shared tables when required by an approved integration
@@ -55,7 +56,7 @@ contract. Consumers should prefer documented service APIs when one exists.
 | Microservice | Domain | Connection env var | Repo |
 |---|---|---|---|
 | `pf-rates` | financial rates | `PF_DATABASE_URL` | `../pf-rates` |
-| `pf-payroll` | payroll | `PF_DATABASE_URL` | `../pf-payroll` |
+| `pf-svc-income` | payroll | `PF_DATABASE_URL` | `../pf-svc-income` |
 
 Both services connect to the same PostgreSQL instance managed by this repo.
 Each keeps its own SQLAlchemy ORM models and repositories — no ORM code lives here.
@@ -63,7 +64,7 @@ Each keeps its own SQLAlchemy ORM models and repositories — no ORM code lives 
 ## Service database identity policy
 
 `pf-db` owns the database role and grant contract consumed by `pf-rates` and
-`pf-payroll`. Every service must have its own login user/role with explicit,
+`pf-svc-income`. Every service must have its own login user/role with explicit,
 least-privilege permissions for its domain. Runtime identities must not be
 shared between services and must not be an owner, superuser, migrator, backup,
 or operator identity.
@@ -226,7 +227,7 @@ See [`docs/ci.md`](docs/ci.md) for the complete CI guide:
 - Migration application workflow (Cloud Run Job)
 - Common CI failures and solutions
 - Rollback strategy
-- Deployment coordination with pf-rates and pf-payroll
+- Deployment coordination with pf-rates and pf-svc-income
 
 Quick reference:
 

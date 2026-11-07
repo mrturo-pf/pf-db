@@ -9,7 +9,7 @@ from pathlib import Path
 
 MAX_BYTES = 63
 BUSINESS_MAX_CHARS = 30
-BUSINESS_PREFIXES = ("RAT_", "PAY_", "INC_")
+BUSINESS_PREFIXES = ("RAT_", "INC_", "INC_")
 PATTERNS = {
     "table": re.compile(r'CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+"([^"]+)"', re.I),
     "materialized_view": re.compile(
