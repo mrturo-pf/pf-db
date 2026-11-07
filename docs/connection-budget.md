@@ -3,7 +3,7 @@
 Status: approved
 Date: 2026-10-13
 Owner: `pf-db`
-Consumers: `pf-rates`, `pf-payroll`
+Consumers: `pf-rates`, `pf-svc-income`
 
 ## Decision
 
@@ -16,7 +16,7 @@ Application services must use explicit pool limits. The approved target is:
 | Service | Cloud Run max instances | Pool upper bound per instance | Steady-state upper bound |
 |---|---:|---:|---:|
 | `pf-rates` | 2 | 5 | 10 |
-| `pf-payroll` | 2 | 5 | 10 |
+| `pf-svc-income` | 2 | 5 | 10 |
 
 The pool upper bound is `pool_size + max_overflow`; the target configuration is
 `pool_size=5` and `max_overflow=0`. Library defaults must not be used as an

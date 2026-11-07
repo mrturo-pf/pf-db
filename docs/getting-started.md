@@ -267,9 +267,9 @@ cd ../pf-rates
 make local-up
 ```
 
-**pf-payroll:**
+**pf-svc-income:**
 ```bash
-cd ../pf-payroll
+cd ../pf-svc-income
 make local-up
 ```
 
@@ -278,6 +278,6 @@ Both services verify that pf-db is running before starting.
 ## See also
 
 - [pf-rates README](https://github.com/mrturo-pf/pf-rates/blob/main/README.md) - Financial rates microservice
-- [pf-payroll README](https://github.com/mrturo-pf/pf-payroll/blob/main/README.md) - Payroll microservice
+- [pf-svc-income README](https://github.com/mrturo-pf/pf-svc-income/blob/main/README.md) - Payroll microservice
 - [Development Guide](development.md) - Complete development workflow
 - [Tables Reference](tables.md) - Schema documentation

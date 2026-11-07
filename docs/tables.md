@@ -11,11 +11,11 @@ around.
 
 pf-db manages **20 tables** across two domains:
 - **Financial rates:** 5 tables (owned by pf-rates)
-- **Payroll:** 15 tables + 1 materialized view (owned by pf-payroll)
+- **Payroll:** 15 tables + 1 materialized view (owned by pf-svc-income)
 
 Payroll models a **single person's own payroll across one or more employers** over
-time, not a multi-employee company payroll system -- `PAY_PERIOD` has no
-employee-level column at all, only `employer_id` + `period_year`/`period_month`.
+time, not a multi-employee company payroll system -- `INC_PAYROLL` has no
+employee-level column at all, only `employer_id` + `accrual_year`/`accrual_month`.
 
 ## Identifier naming policy
 
@@ -24,7 +24,7 @@ New and renamed schema objects follow the `pf-db` identifier policy:
 - PostgreSQL's technical ceiling is **63 UTF-8 bytes** for every identifier;
 - table and materialized-view business names use at most **30 ASCII characters**;
 - table/materialized-view names are uppercase and use an explicit service prefix:
-  `RAT_`, `PAY_`, or `INC_`;
+  `RAT_`, `INC_`, or `INC_`;
 - sequences, indexes, constraints, schemas, and other auxiliary identifiers must
   remain below 63 bytes and use explicit deterministic names;
 - migrations must never rely on PostgreSQL's automatic identifier truncation;
@@ -38,8 +38,8 @@ Ownership means: only the microservices that own a domain **write** to those tab
 
 | Tables | Domain | Owner | Access pattern |
 |---|---|---|
-| `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT`, `RAT_EXPORT_JOB` | Financial rates | [pf-rates](https://github.com/mrturo-pf/pf-rates) | pf-payroll reads via HTTP API (never direct SQL) |
-| All others (15 tables + 1 view) | Payroll | [pf-payroll](https://github.com/mrturo-pf/pf-payroll) | Exclusive write access |
+| `RAT_CURRENCY`, `RAT_EXCH_RATE`, `RAT_ECON_INDEX`, `RAT_TAX_BRCKT`, `RAT_EXPORT_JOB` | Financial rates | [pf-rates](https://github.com/mrturo-pf/pf-rates) | pf-svc-income reads via HTTP API (never direct SQL) |
+| All others (15 tables + 1 view) | Payroll | [pf-svc-income](https://github.com/mrturo-pf/pf-svc-income) | Exclusive write access |
 
 ## Connection string
 
@@ -137,15 +137,15 @@ change rates.
 CREATE TABLE "RAT_ECON_INDEX" (
     id             BIGSERIAL     PRIMARY KEY,
     code           VARCHAR(20)   NOT NULL,
-    period_year    SMALLINT      NOT NULL CHECK (period_year BETWEEN 1990 AND 2100),
-    period_month   SMALLINT      NOT NULL CHECK (period_month BETWEEN 1 AND 12),
+    accrual_year    SMALLINT      NOT NULL CHECK (accrual_year BETWEEN 1990 AND 2100),
+    accrual_month   SMALLINT      NOT NULL CHECK (accrual_month BETWEEN 1 AND 12),
     index_value    NUMERIC(12,6) NOT NULL CHECK (index_value > 0),
     monthly_change NUMERIC(7,4),
     yearly_change  NUMERIC(7,4),
     base_period    VARCHAR(10)   NOT NULL DEFAULT 'DIC-2018',
     source         VARCHAR(40)   NOT NULL DEFAULT 'manual',
     created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_economic_indices UNIQUE (code, period_year, period_month)
+    CONSTRAINT uq_economic_indices UNIQUE (code, accrual_year, accrual_month)
 );
 ```
 
@@ -242,15 +242,15 @@ the raw counts.
 
 ## Payroll tables (15 tables + 1 view)
 
-### PAY_PENS_INST
+### INC_PENS_INST
 
 AFP (pension fund administrator) institutions.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_PENS_INST" (
+CREATE TABLE "INC_PENS_INST" (
     id             BIGSERIAL    PRIMARY KEY,
     code           VARCHAR(40)  NOT NULL UNIQUE,
     name           VARCHAR(120) NOT NULL,
@@ -271,22 +271,22 @@ CREATE TABLE "PAY_PENS_INST" (
 | AFP_UNO | AFP Uno | 0.10 | false |
 
 Only `AFP_PLANVITAL` is `is_active`, since it's the only one with a real assigned
-plan today (see `PAY_PENS_PLAN` below) -- `is_active` gates whether reference-data
+plan today (see `INC_PENS_PLAN` below) -- `is_active` gates whether reference-data
 endpoints/lookups surface an institution by default, not whether the row exists.
 
 **Seed:** `db/02_seed_base.sql`
 
 ---
 
-### PAY_HLTH_INST
+### INC_HLTH_INST
 
 Health institutions (Fonasa + Isapres).
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_HLTH_INST" (
+CREATE TABLE "INC_HLTH_INST" (
     id             BIGSERIAL               PRIMARY KEY,
     code           VARCHAR(40)             NOT NULL UNIQUE,
     name           VARCHAR(120)            NOT NULL,
@@ -314,19 +314,19 @@ Where `health_institution_kind` is `ENUM ('fonasa', 'isapre')`.
 
 ---
 
-### PAY_PENS_PLAN
+### INC_PENS_PLAN
 
 Pension plan **tiers**, one or more per institution, each valid over a date range
 with its own `additional_rate` (the voluntary/commission add-on on top of the
 institution's `mandatory_rate`).
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_PENS_PLAN" (
+CREATE TABLE "INC_PENS_PLAN" (
     id              BIGSERIAL    PRIMARY KEY,
-    institution_id  BIGINT       NOT NULL REFERENCES "PAY_PENS_INST"(id),
+    institution_id  BIGINT       NOT NULL REFERENCES "INC_PENS_INST"(id),
     valid_from      DATE         NOT NULL,
     valid_to        DATE,
     additional_rate NUMERIC(6,4) NOT NULL DEFAULT 0 CHECK (additional_rate >= 0),
@@ -345,25 +345,25 @@ CREATE TABLE "PAY_PENS_PLAN" (
 
 ---
 
-### PAY_HLTH_PLAN
+### INC_HLTH_PLAN
 
 Health plan **tiers**, one or more per institution, each valid over a date range
 with its own `contracted_uf`. A single payroll period is typically linked to
-*multiple* rows here at once via `PAY_PRD_HLTH` (e.g. `Base` + `GES` + `Adicionales`
+*multiple* rows here at once via `INC_PRD_HLTH` (e.g. `Base` + `GES` + `Adicionales`
 tiers for the same Isapre) -- see
 [`https://github.com/mrturo-pf/pf-improvements/blob/main/improvements/HIST-010-health-additional-uf-mismatch/investigation.md`](https://github.com/mrturo-pf/pf-improvements/blob/main/improvements/HIST-010-health-additional-uf-mismatch/investigation.md)
 for the domain logic (`prorated_contracted_uf()` /
-`prorated_additional_amount_clp()` in pf-payroll's
+`prorated_additional_amount_clp()` in pf-svc-income's
 `domain/health_plan_proration.py`) that prorates each tier by its day-overlap with
 the period when a plan starts or ends mid-month.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_HLTH_PLAN" (
+CREATE TABLE "INC_HLTH_PLAN" (
     id             BIGSERIAL     PRIMARY KEY,
-    institution_id BIGINT        NOT NULL REFERENCES "PAY_HLTH_INST"(id),
+    institution_id BIGINT        NOT NULL REFERENCES "INC_HLTH_INST"(id),
     valid_from     DATE          NOT NULL,
     valid_to       DATE,
     plan_name      VARCHAR(120),
@@ -385,15 +385,15 @@ CREATE TABLE "PAY_HLTH_PLAN" (
 
 ---
 
-### PAY_CNTRB_CAP
+### INC_CNTRB_CAP
 
 Monthly contribution caps (UF-based), one row per `cap_type` per valid-date range.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_CNTRB_CAP" (
+CREATE TABLE "INC_CNTRB_CAP" (
     id         BIGSERIAL             PRIMARY KEY,
     cap_type   contribution_cap_type NOT NULL,
     valid_from DATE                  NOT NULL,
@@ -426,15 +426,15 @@ effective-date change.
 
 ---
 
-### PAY_COMP_PROV
+### INC_COMP_PROV
 
 Complementary (voluntary) insurance providers.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_COMP_PROV" (
+CREATE TABLE "INC_COMP_PROV" (
     id   BIGSERIAL    PRIMARY KEY,
     name VARCHAR(120) NOT NULL UNIQUE
 );
@@ -447,19 +447,19 @@ CREATE TABLE "PAY_COMP_PROV" (
 
 ---
 
-### PAY_COMP_PLAN
+### INC_COMP_PLAN
 
 Complementary insurance plans, each belonging to one provider, with a cost that can
 be a fixed CLP amount, a fixed UF amount, or a percentage of the taxable base.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_COMP_PLAN" (
+CREATE TABLE "INC_COMP_PLAN" (
     id            BIGSERIAL                         PRIMARY KEY,
     provider_id   BIGINT                            NOT NULL
-        REFERENCES "PAY_COMP_PROV"(id),
+        REFERENCES "INC_COMP_PROV"(id),
     name          VARCHAR(120)                      NOT NULL,
     cost_type     complementary_insurance_cost_type NOT NULL,
     cost_value    NUMERIC(12,4)                     NOT NULL CHECK (cost_value >= 0),
@@ -482,17 +482,17 @@ coverage, all `fixed_uf` (`db/04_seed_real.sql`).
 
 ---
 
-### PAY_EMPLOYER
+### INC_EMPLOYER
 
 Employer entities -- one payroll history's worth of employer configuration,
 including the rules used to derive each period's `payment_date` when it isn't
 supplied directly.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_EMPLOYER" (
+CREATE TABLE "INC_EMPLOYER" (
     id                                       BIGSERIAL                  PRIMARY KEY,
     name                                     VARCHAR(120)               NOT NULL UNIQUE,
     tax_id                                   VARCHAR(32),
@@ -536,20 +536,20 @@ created ad hoc through the import flows):
 
 ---
 
-### PAY_EMP_CONT
+### INC_EMP_CONT
 
 Employment contract intervals used to resolve the contract applicable to a payroll
 period. `is_indefinite` is explicit and remains true for an indefinite contract even
 after its employment relationship ends and `ended_at` is populated. Contract validity
 intervals may not overlap globally, including across different employers.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_EMP_CONT" (
+CREATE TABLE "INC_EMP_CONT" (
     id            BIGSERIAL PRIMARY KEY,
-    employer_id   BIGINT NOT NULL REFERENCES "PAY_EMPLOYER"(id),
+    employer_id   BIGINT NOT NULL REFERENCES "INC_EMPLOYER"(id),
     started_at    DATE NOT NULL,
     ended_at      DATE,
     is_indefinite BOOLEAN NOT NULL,
@@ -566,9 +566,9 @@ CREATE TABLE "PAY_EMP_CONT" (
 );
 ```
 
-The effective contract is selected by `employer_id` and `PAY_PERIOD.payment_date`.
+The effective contract is selected by `employer_id` and `INC_PAYROLL.payment_date`.
 `position` is nullable because the legacy schema contains no historical position data.
-`PAY_EMPLOYER.started_at`/`ended_at` are legacy lifecycle fields during the expand
+`INC_EMPLOYER.started_at`/`ended_at` are legacy lifecycle fields during the expand
 migration and are scheduled to be removed after all application reads use this table.
 
 **Seed:** no static seed; historical rows are backfilled by the employment-contract
@@ -576,93 +576,93 @@ migration.
 
 ---
 
-### PAY_PERIOD
+### INC_PAYROLL
 
 Payroll periods (one per employer + year + month). **No employee-level column** --
 this table tracks one person's own payroll, not a multi-employee company payroll.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_PERIOD" (
+CREATE TABLE "INC_PAYROLL" (
     id                       BIGSERIAL                NOT NULL PRIMARY KEY,
-    employer_id              BIGINT                   NOT NULL REFERENCES "PAY_EMPLOYER"(id),
-    period_year              SMALLINT                 NOT NULL,
-    period_month             SMALLINT                 NOT NULL,
+    employer_id              BIGINT                   NOT NULL REFERENCES "INC_EMPLOYER"(id),
+    accrual_year              SMALLINT                 NOT NULL,
+    accrual_month             SMALLINT                 NOT NULL,
     payment_date             DATE                     NOT NULL,
     worked_days              SMALLINT                 NOT NULL DEFAULT 30,
     declared_net_pay_clp     NUMERIC(18,2),
     expected_net_pay_clp     NUMERIC(18,2),
     net_pay_difference_clp   NUMERIC(18,2),
-    pension_plan_id          BIGINT                   REFERENCES "PAY_PENS_PLAN"(id),
-    UNIQUE (employer_id, period_year, period_month)
+    pension_plan_id          BIGINT                   REFERENCES "INC_PENS_PLAN"(id),
+    UNIQUE (employer_id, accrual_year, accrual_month)
 );
 ```
 
 **The review workflow and period-level employment contract kind are not persisted.
-Contract selection is resolved through `PAY_EMP_CONT` by employer and payment date.**
+Contract selection is resolved through `INC_EMP_CONT` by employer and payment date.**
 
 **No seed file** -- created by `POST /payroll/import/spreadsheet` or
 `POST /payroll/import/json`.
 
 ---
 
-### PAY_PRD_HLTH
+### INC_PRD_HLTH
 
 Junction table: which health plan tier(s) apply to a given period. Composite
 primary key, no surrogate `id` -- a period commonly links to more than one row here
-at once (e.g. `Base` + `GES` + `Adicionales`, see `PAY_HLTH_PLAN` above).
+at once (e.g. `Base` + `GES` + `Adicionales`, see `INC_HLTH_PLAN` above).
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_PRD_HLTH" (
-    period_id      BIGINT NOT NULL REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
-    health_plan_id BIGINT NOT NULL REFERENCES "PAY_HLTH_PLAN"(id),
-    PRIMARY KEY (period_id, health_plan_id)
+CREATE TABLE "INC_PRD_HLTH" (
+    payroll_id      BIGINT NOT NULL REFERENCES "INC_PAYROLL"(id) ON DELETE CASCADE,
+    health_plan_id BIGINT NOT NULL REFERENCES "INC_HLTH_PLAN"(id),
+    PRIMARY KEY (payroll_id, health_plan_id)
 );
 ```
 
-**No seed file** -- assigned via `POST /payroll/{period_id}/assign-plans` or
+**No seed file** -- assigned via `POST /payroll/{payroll_id}/assign-plans` or
 directly by the import flow.
 
 ---
 
-### PAY_PRD_COMP
+### INC_PRD_COMP
 
 Junction table: which complementary insurance plan(s) apply to a given period.
-Composite primary key, same shape as `PAY_PRD_HLTH`.
+Composite primary key, same shape as `INC_PRD_HLTH`.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_PRD_COMP" (
-    period_id                       BIGINT NOT NULL
-        REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
+CREATE TABLE "INC_PRD_COMP" (
+    payroll_id                       BIGINT NOT NULL
+        REFERENCES "INC_PAYROLL"(id) ON DELETE CASCADE,
     complementary_insurance_plan_id BIGINT NOT NULL
-        REFERENCES "PAY_COMP_PLAN"(id),
-    PRIMARY KEY (period_id, complementary_insurance_plan_id)
+        REFERENCES "INC_COMP_PLAN"(id),
+    PRIMARY KEY (payroll_id, complementary_insurance_plan_id)
 );
 ```
 
-**No seed file** -- assigned the same way as `PAY_PRD_HLTH`.
+**No seed file** -- assigned the same way as `INC_PRD_HLTH`.
 
 ---
 
-### PAY_CONCEPT
+### INC_CONCEPT
 
 Payroll concept catalog (income lines and discount lines). Closed, seeded catalog --
 `concept_code` values used elsewhere (e.g. PDF import row resolution) must match a
 `code` here.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_CONCEPT" (
+CREATE TABLE "INC_CONCEPT" (
     id         BIGSERIAL    PRIMARY KEY,
     code       VARCHAR(40)  NOT NULL UNIQUE,
     name       VARCHAR(120) NOT NULL,
@@ -700,43 +700,43 @@ CREATE TABLE "PAY_CONCEPT" (
 
 ---
 
-### PAY_ITEM
+### INC_ITEM
 
 Individual payroll line items -- one row per concept per period.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_ITEM" (
+CREATE TABLE "INC_ITEM" (
     id         BIGSERIAL     PRIMARY KEY,
-    period_id  BIGINT        NOT NULL REFERENCES "PAY_PERIOD"(id) ON DELETE CASCADE,
-    concept_id BIGINT        NOT NULL REFERENCES "PAY_CONCEPT"(id),
+    payroll_id  BIGINT        NOT NULL REFERENCES "INC_PAYROLL"(id) ON DELETE CASCADE,
+    concept_id BIGINT        NOT NULL REFERENCES "INC_CONCEPT"(id),
     amount_clp NUMERIC(18,2) NOT NULL,
     notes      TEXT,
     created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_payroll_items_period_id  ON "PAY_ITEM"(period_id);
-CREATE INDEX idx_payroll_items_concept_id ON "PAY_ITEM"(concept_id);
+CREATE INDEX idx_payroll_items_payroll_id  ON "INC_ITEM"(payroll_id);
+CREATE INDEX idx_payroll_items_concept_id ON "INC_ITEM"(concept_id);
 ```
 
-### PAY_PDF_TEMPLATE
+### INC_PDF_TEMPLATE
 
 Employer-specific payroll PDF payslip templates (raw-label -> `concept_code` mapping
-rules), managed via `pf-payroll`'s `/payroll/templates` CRUD endpoints. Replaces the
-former git-tracked JSON files under `pf-payroll/infrastructure/pdf_import/templates/`
--- see `pf-payroll/https://github.com/mrturo-pf/pf-improvements/blob/main/improvements/HIST-019-pdf-template-management/recommendation.md`
+rules), managed via `pf-svc-income`'s `/payroll/templates` CRUD endpoints. Replaces the
+former git-tracked JSON files under `pf-svc-income/infrastructure/pdf_import/templates/`
+-- see `pf-svc-income/https://github.com/mrturo-pf/pf-improvements/blob/main/improvements/HIST-019-pdf-template-management/recommendation.md`
 and `-plan.md`.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_PDF_TEMPLATE" (
+CREATE TABLE "INC_PDF_TEMPLATE" (
     id                     BIGSERIAL     PRIMARY KEY,
     template_id            VARCHAR(80)   NOT NULL UNIQUE,
-    employer_id            BIGINT        NOT NULL REFERENCES "PAY_EMPLOYER"(id),
+    employer_id            BIGINT        NOT NULL REFERENCES "INC_EMPLOYER"(id),
     employer_match_pattern VARCHAR(500)  NOT NULL,
     version                INTEGER       NOT NULL DEFAULT 1 CHECK (version > 0),
     is_active              BOOLEAN       NOT NULL DEFAULT TRUE,
@@ -744,97 +744,97 @@ CREATE TABLE "PAY_PDF_TEMPLATE" (
     updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_pay_pdf_template_is_active ON "PAY_PDF_TEMPLATE"(is_active);
+CREATE INDEX idx_pay_pdf_template_is_active ON "INC_PDF_TEMPLATE"(is_active);
 ```
 
 - `employer_id` is **required** (`NOT NULL`, since migration `0012`) -- a template
-  may only be created for an employer that already has a `PAY_EMPLOYER` row (i.e.
+  may only be created for an employer that already has a `INC_EMPLOYER` row (i.e.
   after its first payroll import has run at least once; there is no standalone
-  endpoint to create a `PAY_EMPLOYER` row ahead of that). It is still never read by
-  the actual PDF-matching code (`select_template()` in pf-payroll), which keeps
+  endpoint to create a `INC_EMPLOYER` row ahead of that). It is still never read by
+  the actual PDF-matching code (`select_template()` in pf-svc-income), which keeps
   using `employer_match_pattern` (a regex against the full raw PDF text) exactly as
   before, since the printed employer name on a real PDF does not necessarily match
-  `PAY_EMPLOYER.name` verbatim.
+  `INC_EMPLOYER.name` verbatim.
 - There is deliberately **no `employer_name` column** (removed in migration `0012` --
   it briefly existed as nullable, see migration `0010`, as a literal-override fallback
   for when `employer_id` was allowed to be `NULL`; now that `employer_id` is always
   required, that fallback case can no longer happen). The application layer
-  (pf-payroll) always resolves the display name fresh from `PAY_EMPLOYER.name` via
+  (pf-svc-income) always resolves the display name fresh from `INC_EMPLOYER.name` via
   `employer_id` at read time -- never copied into this table.
 - `is_active` is the logical-delete flag, following the exact same precedent as
-  `PAY_PENS_INST`/`PAY_HLTH_INST` above (flipped by `DELETE /payroll/templates/{id}`,
+  `INC_PENS_INST`/`INC_HLTH_INST` above (flipped by `DELETE /payroll/templates/{id}`,
   never a row `DELETE`).
 - `template_id` (e.g. `"walmart-chile-v1"`) is the external identifier used by the API
   and by `PdfImportPreviewResponse.template_id` -- the internal numeric `id` never
-  leaves pf-payroll.
+  leaves pf-svc-income.
 
 **Seed:** `db/04_seed_real.sql` (the real `walmart-chile-v1` template, migrated from the
 former JSON file).
 
 ---
 
-### PAY_PDF_TEMPLATE_FIELD
+### INC_PDF_TEMPLATE_FIELD
 
-One row per label-matching rule within a `PAY_PDF_TEMPLATE` (1:N).
+One row per label-matching rule within a `INC_PDF_TEMPLATE` (1:N).
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "PAY_PDF_TEMPLATE_FIELD" (
+CREATE TABLE "INC_PDF_TEMPLATE_FIELD" (
     id                BIGSERIAL     PRIMARY KEY,
     template_id       BIGINT        NOT NULL
-        REFERENCES "PAY_PDF_TEMPLATE"(id) ON DELETE CASCADE,
+        REFERENCES "INC_PDF_TEMPLATE"(id) ON DELETE CASCADE,
     pdf_label_pattern VARCHAR(500)  NOT NULL,
-    concept_id        BIGINT        NOT NULL REFERENCES "PAY_CONCEPT"(id),
+    concept_id        BIGINT        NOT NULL REFERENCES "INC_CONCEPT"(id),
     confidence        NUMERIC(3,2)  NOT NULL DEFAULT 0.90 CHECK (confidence BETWEEN 0 AND 1)
 );
 
-CREATE INDEX idx_pay_pdf_template_field_concept_id ON "PAY_PDF_TEMPLATE_FIELD"(concept_id);
-CREATE INDEX idx_pay_pdf_template_field_template_id ON "PAY_PDF_TEMPLATE_FIELD"(template_id);
+CREATE INDEX idx_pay_pdf_template_field_concept_id ON "INC_PDF_TEMPLATE_FIELD"(concept_id);
+CREATE INDEX idx_pay_pdf_template_field_template_id ON "INC_PDF_TEMPLATE_FIELD"(template_id);
 ```
 
-- `concept_id` carries a real FK to `PAY_CONCEPT(id)` -- an integrity upgrade the
+- `concept_id` carries a real FK to `INC_CONCEPT(id)` -- an integrity upgrade the
   old hand-edited JSON format could not offer: a typo'd concept reference there
   silently produced a field that never resolves to a real concept, only
   discoverable at `pdf-preview` time against a real PDF. A write with an unknown
   `concept_code` is rejected by the application layer with a 400 before it ever
   reaches this FK (see `interfaces/api/routes/pdf_templates.py`'s
   `_resolve_field_dtos()`). The column is `concept_id`, not `concept_code`, since
-  migration `0011` -- every other table referencing `PAY_CONCEPT` already does so
-  by its surrogate id (`PAY_ITEM.concept_id`); the original `concept_code VARCHAR(40)
-  REFERENCES PAY_CONCEPT(code)` from migration `0009` was the one inconsistent
+  migration `0011` -- every other table referencing `INC_CONCEPT` already does so
+  by its surrogate id (`INC_ITEM.concept_id`); the original `concept_code VARCHAR(40)
+  REFERENCES INC_CONCEPT(code)` from migration `0009` was the one inconsistent
   outlier, not a deliberate choice. `concept_code` remains the business-facing
   identifier at the application layer (requests, responses, `CONCEPT_MAP`, the
   PDF-matching engine) -- only this storage column changed, resolved at the
   repository boundary.
 - There is deliberately **no `kind` column** (removed in migration `0010` -- it used to
-  duplicate `PAY_CONCEPT.kind` with no referential integrity tying the two copies
+  duplicate `INC_CONCEPT.kind` with no referential integrity tying the two copies
   together, letting a write set a `kind` that contradicted its own concept's
-  real kind). The application layer (pf-payroll) always resolves `kind` from
-  `PAY_CONCEPT` via `concept_id` at read time instead.
-- Deleting a `PAY_PDF_TEMPLATE` row (never done by the API -- logical delete only)
+  real kind). The application layer (pf-svc-income) always resolves `kind` from
+  `INC_CONCEPT` via `concept_id` at read time instead.
+- Deleting a `INC_PDF_TEMPLATE` row (never done by the API -- logical delete only)
   would cascade here; in practice this only ever fires if a row is removed by hand.
 
 **Seed:** `db/04_seed_real.sql` (the 20 fields of the real `walmart-chile-v1` template).
 
 ---
 
-### PAY_MV_SUMARY (materialized view)
+### INC_MV_PAY_SUMMARY (materialized view)
 
 Aggregated per-period totals (gross income, taxable income, discounts, net pay) for
 fast reads, refreshed on writes rather than computed on every read.
 
-**Owner:** pf-payroll
+**Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE MATERIALIZED VIEW "PAY_MV_SUMARY" AS
+CREATE MATERIALIZED VIEW "INC_MV_PAY_SUMMARY" AS
 SELECT
-    p.id           AS period_id,
+    p.id           AS payroll_id,
     p.employer_id,
-    p.period_year,
-    p.period_month,
+    p.accrual_year,
+    p.accrual_month,
     p.payment_date,
     SUM(CASE WHEN c.kind = 'income' AND c.is_taxable THEN i.amount_clp ELSE 0 END)
         AS taxable_income_clp,
@@ -842,20 +842,20 @@ SELECT
     SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS total_discounts_clp,
     SUM(CASE WHEN c.kind = 'income'   THEN i.amount_clp ELSE 0 END) -
     SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS net_pay_clp
-FROM "PAY_PERIOD"  p
-JOIN "PAY_ITEM"    i ON i.period_id  = p.id
-JOIN "PAY_CONCEPT" c ON c.id = i.concept_id
+FROM "INC_PAYROLL"  p
+JOIN "INC_ITEM"    i ON i.payroll_id  = p.id
+JOIN "INC_CONCEPT" c ON c.id = i.concept_id
 GROUP BY p.id;
 
-CREATE UNIQUE INDEX idx_pay_mv_sumary_period ON "PAY_MV_SUMARY"(period_id);
+CREATE UNIQUE INDEX idx_pay_mv_sumary_period ON "INC_MV_PAY_SUMMARY"(payroll_id);
 ```
 
 **Refresh:**
 ```sql
-REFRESH MATERIALIZED VIEW "PAY_MV_SUMARY";
+REFRESH MATERIALIZED VIEW "INC_MV_PAY_SUMMARY";
 ```
 Run **without** `CONCURRENTLY` (it happens inside the same transaction as the
-`PAY_ITEM` writes that trigger it, in
+`INC_ITEM` writes that trigger it, in
 `payroll_repository_shared.py`, and `CONCURRENTLY` cannot run inside a transaction
 block) -- the unique index above exists for future flexibility, not because the
 current refresh call uses it.
@@ -865,15 +865,15 @@ current refresh call uses it.
 ## Entity Relationship Diagram
 
 ```
-[PAY_EMPLOYER] 1---N [PAY_PERIOD]
+[INC_EMPLOYER] 1---N [INC_PAYROLL]
 
-[PAY_PENS_INST] 1---N [PAY_PENS_PLAN] 1---N [PAY_PERIOD] (pension_plan_id)
-[PAY_HLTH_INST] 1---N [PAY_HLTH_PLAN] N---N [PAY_PERIOD] (via PAY_PRD_HLTH)
-[PAY_COMP_PROV] 1---N [PAY_COMP_PLAN] N---N [PAY_PERIOD] (via PAY_PRD_COMP)
+[INC_PENS_INST] 1---N [INC_PENS_PLAN] 1---N [INC_PAYROLL] (pension_plan_id)
+[INC_HLTH_INST] 1---N [INC_HLTH_PLAN] N---N [INC_PAYROLL] (via INC_PRD_HLTH)
+[INC_COMP_PROV] 1---N [INC_COMP_PLAN] N---N [INC_PAYROLL] (via INC_PRD_COMP)
 
-[PAY_PERIOD] 1---N [PAY_ITEM] N---1 [PAY_CONCEPT]
+[INC_PAYROLL] 1---N [INC_ITEM] N---1 [INC_CONCEPT]
 
-[PAY_EMPLOYER] 1---N [PAY_PDF_TEMPLATE] 1---N [PAY_PDF_TEMPLATE_FIELD] N---1 [PAY_CONCEPT]
+[INC_EMPLOYER] 1---N [INC_PDF_TEMPLATE] 1---N [INC_PDF_TEMPLATE_FIELD] N---1 [INC_CONCEPT]
 
 [RAT_CURRENCY] 1---N [RAT_EXCH_RATE]
 ```
@@ -893,13 +893,13 @@ PostgreSQL (RAT_CURRENCY, RAT_EXCH_RATE, RAT_ECON_INDEX, RAT_TAX_BRCKT)
 pf-rates (GET endpoints)
   |
   v
-pf-payroll (HTTP client, MarketDataRepository)
+pf-svc-income (HTTP client, MarketDataRepository)
   |
   v
 PostgreSQL (payroll tables)
   |
   v
-pf-payroll (API + PDF reports)
+pf-svc-income (API + PDF reports)
 ```
 
 ## See also
@@ -908,4 +908,4 @@ pf-payroll (API + PDF reports)
 - [Development Guide](development.md) - Make commands and workflows
 - [Migrations Guide](migrations.md) - Creating and managing migrations
 - [pf-rates AGENTS.md](https://github.com/mrturo-pf/pf-rates/blob/main/AGENTS.md) - Financial rates microservice
-- [pf-payroll AGENTS.md](https://github.com/mrturo-pf/pf-payroll/blob/main/AGENTS.md) - Payroll microservice
+- [pf-svc-income AGENTS.md](https://github.com/mrturo-pf/pf-svc-income/blob/main/AGENTS.md) - Payroll microservice

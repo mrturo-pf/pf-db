@@ -13,7 +13,7 @@ NULL `employer_name` before this migration.
 This is a real behavior change, not just a storage cleanup: it is no longer
 possible to pre-create a template for a brand-new employer before their
 first import. That tradeoff was confirmed explicitly by the user rather
-than assumed -- see pf-payroll/docs/proposals/
+than assumed -- see pf-svc-income/docs/proposals/
 pdf-template-management-plan.md's "Third follow-up" section.
 
 Revision ID: 0012

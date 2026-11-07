@@ -8,7 +8,7 @@ Create Date: 2026-07-25
 Renames all tables to follow naming convention:
 - UPPERCASE
 - Max 14 characters
-- Service prefix: RAT_ (pf-rates) or PAY_ (pf-payroll)
+- Service prefix: RAT_ (pf-rates) or PAY_ (pf-svc-income)
 
 """
 from alembic import op
@@ -29,7 +29,7 @@ def upgrade() -> None:
     op.rename_table('economic_indices', 'RAT_ECON_INDEX')
     op.rename_table('income_tax_brackets', 'RAT_TAX_BRCKT')
 
-    # pf-payroll tables (PAY_ prefix)
+    # pf-svc-income tables (PAY_ prefix)
     op.rename_table('pension_institutions', 'PAY_PENS_INST')
     op.rename_table('health_institutions', 'PAY_HLTH_INST')
     op.rename_table('pension_plans', 'PAY_PENS_PLAN')
@@ -107,7 +107,7 @@ def downgrade() -> None:
         'ON mv_payroll_summary(period_id)'
     )
 
-    # pf-payroll tables (reverse order for FK dependencies)
+    # pf-svc-income tables (reverse order for FK dependencies)
     op.rename_table('PAY_ITEM', 'payroll_items')
     op.rename_table('PAY_CONCEPT', 'payroll_concepts')
     op.rename_table('PAY_PRD_COMP', 'payroll_complementary_insurance')

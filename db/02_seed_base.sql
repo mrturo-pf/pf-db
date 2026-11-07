@@ -92,7 +92,7 @@ WHERE (cap_type, valid_from) NOT IN (
 -- ============================================================
 -- 5. Payroll concepts
 -- ============================================================
-INSERT INTO "INC_PAY_CONCEPT" (code, name, kind, is_taxable) VALUES
+INSERT INTO "INC_INC_CONCEPT" (code, name, kind, is_taxable) VALUES
     ('SALARY_BASE',                          'Base Salary',                           'income',   TRUE),
     ('LEGAL_GRATUITY',                       'Legal Gratuity',                        'income',   TRUE),
     ('TELEWORK_REFUND',                      'Telework Refund',                       'income',   FALSE),
@@ -120,7 +120,7 @@ SET
     kind       = EXCLUDED.kind,
     is_taxable = EXCLUDED.is_taxable;
 
-DELETE FROM "INC_PAY_CONCEPT" WHERE code NOT IN (
+DELETE FROM "INC_INC_CONCEPT" WHERE code NOT IN (
     'SALARY_BASE', 'LEGAL_GRATUITY', 'TELEWORK_REFUND',
     'HEALTH_INSURANCE_EMPLOYER_CONTRIBUTION', 'VACATION_INCENTIVE',
     'HOLIDAY_BONUS', 'AVAILABILITY_BONUS', 'LEGAL_GRATUITY_ADJUSTMENT',
