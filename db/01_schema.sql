@@ -350,3 +350,15 @@ JOIN "INC_PAY_CONCEPT" c ON c.id = i.concept_id
 GROUP BY p.id;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pay_mv_sumary_period ON "INC_MV_PAY_SUMMARY"(payroll_id);
+
+-- Match the production Alembic contract used by pf-svc-income to refresh the
+-- summary view after payroll mutations. Direct local bootstrap has no runtime
+-- role matrix, so the function is available to the local database owner only.
+CREATE OR REPLACE FUNCTION public."INC_FN_REFRESH_PAY_SUMMARY"()
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+    REFRESH MATERIALIZED VIEW public."INC_MV_PAY_SUMMARY";
+$$;
