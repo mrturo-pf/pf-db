@@ -180,4 +180,4 @@ def downgrade() -> None:
     for old_name, new_name in reversed(_TABLES):
         op.rename_table(new_name, old_name)
 
-    _ensure_sequence_grants("REF_EXPORT_JOB_id_seq")
+    _ensure_sequence_grants("FID_EXPORT_JOB_id_seq")
