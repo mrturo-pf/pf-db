@@ -38,7 +38,7 @@ Ownership means: only the microservices that own a domain **write** to those tab
 
 | Tables | Domain | Owner | Access pattern |
 |---|---|---|
-| `FID_RATE_UNIT`, `FID_RATE_VALUE`, `FID_ECON_INDEX`, `FID_TAX_BRCKT`, `FID_EXPORT_JOB` | Financial rates | [pf-rates](https://github.com/mrturo-pf/pf-rates) | pf-svc-income reads via HTTP API (never direct SQL) |
+| `REF_RATE_UNIT`, `REF_RATE_VALUE`, `REF_ECON_INDEX`, `REF_TAX_BRCKT`, `REF_EXPORT_JOB` | Financial rates | [pf-rates](https://github.com/mrturo-pf/pf-rates) | pf-svc-income reads via HTTP API (never direct SQL) |
 | All others (15 tables + 1 view) | Payroll | [pf-svc-income](https://github.com/mrturo-pf/pf-svc-income) | Exclusive write access |
 
 ## Connection string
@@ -66,7 +66,7 @@ see [`development.md`](development.md) for the Make targets that run them:
 
 ## Financial rates tables (5 tables)
 
-### FID_RATE_UNIT
+### REF_RATE_UNIT
 
 Supported currencies **and index units** (UF/UTM are not fiat currencies but share
 this table, distinguished by `unit_kind`).
@@ -75,7 +75,7 @@ this table, distinguished by `unit_kind`).
 
 **Schema:**
 ```sql
-CREATE TABLE "FID_RATE_UNIT" (
+CREATE TABLE "REF_RATE_UNIT" (
     code      CHAR(3)     PRIMARY KEY,
     name      VARCHAR(60) NOT NULL,
     is_fiat   BOOLEAN     NOT NULL DEFAULT TRUE,
@@ -98,7 +98,7 @@ file get deleted):
 
 ---
 
-### FID_RATE_VALUE
+### REF_RATE_VALUE
 
 Historical exchange rates (CLP value for foreign currencies and index units).
 
@@ -106,9 +106,9 @@ Historical exchange rates (CLP value for foreign currencies and index units).
 
 **Schema:**
 ```sql
-CREATE TABLE "FID_RATE_VALUE" (
+CREATE TABLE "REF_RATE_VALUE" (
     id            BIGSERIAL     PRIMARY KEY,
-    currency_code CHAR(3)       NOT NULL REFERENCES "FID_RATE_UNIT"(code),
+    currency_code CHAR(3)       NOT NULL REFERENCES "REF_RATE_UNIT"(code),
     rate_date     DATE          NOT NULL,
     value_clp     NUMERIC(18,6) NOT NULL CHECK (value_clp > 0),
     source        VARCHAR(40)   NOT NULL DEFAULT 'manual',
@@ -125,7 +125,7 @@ credentials for `USD`/`EUR`). `source` records which provider resolved that row.
 
 ---
 
-### FID_ECON_INDEX
+### REF_ECON_INDEX
 
 Economic indices (`UF`, `UTM`, `IPC_CL`) with monthly values and period-over-period
 change rates.
@@ -134,7 +134,7 @@ change rates.
 
 **Schema:**
 ```sql
-CREATE TABLE "FID_ECON_INDEX" (
+CREATE TABLE "REF_ECON_INDEX" (
     id             BIGSERIAL     PRIMARY KEY,
     code           VARCHAR(20)   NOT NULL,
     accrual_year    SMALLINT      NOT NULL CHECK (accrual_year BETWEEN 1990 AND 2100),
@@ -158,7 +158,7 @@ startup background sync.
 
 ---
 
-### FID_TAX_BRCKT
+### REF_TAX_BRCKT
 
 Income tax brackets for Chilean monthly withholding, as **valid-date ranges** rather
 than one row per calendar year.
@@ -167,7 +167,7 @@ than one row per calendar year.
 
 **Schema:**
 ```sql
-CREATE TABLE "FID_TAX_BRCKT" (
+CREATE TABLE "REF_TAX_BRCKT" (
     id              BIGSERIAL     PRIMARY KEY,
     valid_from      DATE          NOT NULL,
     valid_to        DATE,
@@ -185,7 +185,7 @@ CREATE TABLE "FID_TAX_BRCKT" (
 
 ---
 
-### FID_EXPORT_JOB
+### REF_EXPORT_JOB
 
 Async CSV export job tracking (`POST /exports/financial-data {"async": true}`),
 including cooperative cancellation
@@ -195,7 +195,7 @@ including cooperative cancellation
 
 **Schema:**
 ```sql
-CREATE TABLE "FID_EXPORT_JOB" (
+CREATE TABLE "REF_EXPORT_JOB" (
     id                   BIGSERIAL     PRIMARY KEY,
     status               VARCHAR(20)   NOT NULL DEFAULT 'pending'
         CONSTRAINT chk_rat_export_job_status
@@ -212,7 +212,7 @@ CREATE TABLE "FID_EXPORT_JOB" (
     updated_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_rat_export_job_status_created ON "FID_EXPORT_JOB" (status, created_at);
+CREATE INDEX idx_rat_export_job_status_created ON "REF_EXPORT_JOB" (status, created_at);
 ```
 
 `export_kind` (added in migration `0007`, dropped in migration `0008`) used to
@@ -875,7 +875,7 @@ current refresh call uses it.
 
 [INC_EMPLOYER] 1---N [INC_PDF_TEMPLATE] 1---N [INC_PDF_TEMPLATE_FIELD] N---1 [INC_CONCEPT]
 
-[FID_RATE_UNIT] 1---N [FID_RATE_VALUE]
+[REF_RATE_UNIT] 1---N [REF_RATE_VALUE]
 ```
 
 ## Data flow
@@ -887,7 +887,7 @@ External Sources (Mindicador, BCCh, SII)
 pf-rates (/refresh endpoints + startup background sync)
   |
   v
-PostgreSQL (FID_RATE_UNIT, FID_RATE_VALUE, FID_ECON_INDEX, FID_TAX_BRCKT)
+PostgreSQL (REF_RATE_UNIT, REF_RATE_VALUE, REF_ECON_INDEX, REF_TAX_BRCKT)
   |
   v
 pf-rates (GET endpoints)

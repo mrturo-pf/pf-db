@@ -12,7 +12,7 @@ BEGIN;
 -- ============================================================
 -- 1. Currencies and index units
 -- ============================================================
-INSERT INTO "FID_RATE_UNIT" (code, name, is_fiat, unit_kind) VALUES
+INSERT INTO "REF_RATE_UNIT" (code, name, is_fiat, unit_kind) VALUES
     ('CLP', 'Peso chileno',              TRUE,  'currency'),
     ('USD', 'US Dollar',                 TRUE,  'currency'),
     ('EUR', 'Euro',                      TRUE,  'currency'),
@@ -24,7 +24,7 @@ SET
     is_fiat   = EXCLUDED.is_fiat,
     unit_kind = EXCLUDED.unit_kind;
 
-DELETE FROM "FID_RATE_UNIT" WHERE code NOT IN ('CLP', 'USD', 'EUR', 'UF', 'UTM');
+DELETE FROM "REF_RATE_UNIT" WHERE code NOT IN ('CLP', 'USD', 'EUR', 'UF', 'UTM');
 
 -- ============================================================
 -- 2. Pension institutions

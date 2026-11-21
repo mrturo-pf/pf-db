@@ -20,7 +20,7 @@ pf-db/
 │       ├── 0001_rates_schema.py   # currencies, exchange_rates, economic_indices, income_tax_brackets
 │       ├── 0002_payroll_schema.py # pension/health/contribution tables + employers + payroll core + mv
 │       ├── 0003_rename_tables_service_prefix.py # historical RAT_*/INC_* prefix migration; current payroll objects use INC_*
-│       └── 0004_export_jobs_table.py # FID_EXPORT_JOB: async CSV export job tracking
+│       └── 0004_export_jobs_table.py # REF_EXPORT_JOB: async CSV export job tracking
 ├── db/
 │   ├── 01_schema.sql              # idempotent DDL reference (do NOT run in production)
 │   ├── 02_seed_base.sql           # base seed: currencies, institutions, caps, brackets, concepts
@@ -44,7 +44,7 @@ auxiliary identifiers must remain below that ceiling with explicit names. See
 
 | Tables | Domain |
 |---|---|
-| `FID_RATE_UNIT`, `FID_RATE_VALUE`, `FID_ECON_INDEX`, `FID_TAX_BRCKT`, `FID_EXPORT_JOB` | financial rates |
+| `REF_RATE_UNIT`, `REF_RATE_VALUE`, `REF_ECON_INDEX`, `REF_TAX_BRCKT`, `REF_EXPORT_JOB` | financial rates |
 | 15 payroll tables + `INC_MV_PAY_SUMMARY` materialized view | payroll |
 
 Ownership means: only the microservices that own a domain write to those tables.
