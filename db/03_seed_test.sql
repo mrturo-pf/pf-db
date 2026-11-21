@@ -6,7 +6,7 @@
 -- ============================================================
 -- 1. Economic indices used by local API smoke tests
 -- ============================================================
-INSERT INTO "RAT_ECON_INDEX" (code, accrual_year, accrual_month, index_value, source)
+INSERT INTO "FID_ECON_INDEX" (code, accrual_year, accrual_month, index_value, source)
 VALUES ('IPC_CL', 2026, 1, 109.710000, 'test')
 ON CONFLICT (code, accrual_year, accrual_month) DO UPDATE
 SET index_value = EXCLUDED.index_value,
@@ -15,7 +15,7 @@ SET index_value = EXCLUDED.index_value,
 -- ============================================================
 -- 2. Income-tax bracket used by local API smoke tests
 -- ============================================================
-INSERT INTO "RAT_TAX_BRCKT" (
+INSERT INTO "FID_TAX_BRCKT" (
     valid_from, valid_to, lower_bound_utm, upper_bound_utm, marginal_rate, rebate_utm
 ) VALUES
     (DATE '2026-01-01', NULL, 0, 100, 0.100000, 0)
@@ -27,7 +27,7 @@ SET valid_to = EXCLUDED.valid_to,
 
 -- 3. Exchange rates used by local payroll validation tests
 -- ============================================================
-INSERT INTO "RAT_EXCH_RATE" (currency_code, rate_date, value_clp, source)
+INSERT INTO "FID_RATE_VALUE" (currency_code, rate_date, value_clp, source)
 VALUES ('UF', DATE '2027-01-31', 40000.000000, 'test')
 ON CONFLICT (currency_code, rate_date) DO UPDATE
 SET value_clp = EXCLUDED.value_clp,
