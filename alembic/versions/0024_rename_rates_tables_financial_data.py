@@ -118,8 +118,8 @@ def _rename_index(old_name: str, new_name: str) -> None:
     )
 
 
-def _rename_sequence_grants(old_sequence: str, new_sequence: str) -> None:
-    """Move existing login-role sequence grants to the renamed sequence."""
+def _ensure_sequence_grants(sequence_name: str) -> None:
+    """Preserve sequence grants for login roles after a sequence rename."""
     op.execute(
         f"""
         DO $$
@@ -131,11 +131,11 @@ def _rename_sequence_grants(old_sequence: str, new_sequence: str) -> None:
                   FROM pg_roles
                  WHERE rolcanlogin
                    AND has_sequence_privilege(
-                       rolname, 'public."{old_sequence}"', 'USAGE'
+                       rolname, 'public."{sequence_name}"', 'USAGE'
                    )
             LOOP
                 EXECUTE format(
-                    'GRANT USAGE, SELECT ON SEQUENCE public."{new_sequence}" TO %I',
+                    'GRANT USAGE, SELECT ON SEQUENCE public."{sequence_name}" TO %I',
                     role_name
                 );
             END LOOP;
@@ -161,13 +161,11 @@ def upgrade() -> None:
         else:
             _rename_relation(old_name, new_name)
 
-    _rename_sequence_grants("RAT_EXPORT_JOB_id_seq", "FID_EXPORT_JOB_id_seq")
+    _ensure_sequence_grants("FID_EXPORT_JOB_id_seq")
 
 
 def downgrade() -> None:
     """Restore the RAT_* tables and auxiliary object names."""
-    _rename_sequence_grants("FID_EXPORT_JOB_id_seq", "RAT_EXPORT_JOB_id_seq")
-
     for old_name, new_name in reversed(_RENAMES):
         if old_name.startswith(("chk_", "uq_")) or old_name.endswith("_key"):
             _rename_constraint(new_name, old_name)
@@ -181,3 +179,5 @@ def downgrade() -> None:
 
     for old_name, new_name in reversed(_TABLES):
         op.rename_table(new_name, old_name)
+
+    _ensure_sequence_grants("RAT_EXPORT_JOB_id_seq")
