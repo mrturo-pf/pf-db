@@ -360,7 +360,7 @@ Example:
 
 ```sql
 -- Idempotent insert
-INSERT INTO "RAT_CURRENCY" (code, name) 
+INSERT INTO "FID_RATE_UNIT" (code, name)
 VALUES ('USD', 'United States Dollar')
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 ```
