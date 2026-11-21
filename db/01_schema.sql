@@ -20,7 +20,7 @@
 -- ============================================================
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
-CREATE TABLE IF NOT EXISTS "FID_RATE_UNIT" (
+CREATE TABLE IF NOT EXISTS "REF_RATE_UNIT" (
     code      CHAR(3)     PRIMARY KEY,
     name      VARCHAR(60) NOT NULL,
     is_fiat   BOOLEAN     NOT NULL DEFAULT TRUE,
@@ -28,9 +28,9 @@ CREATE TABLE IF NOT EXISTS "FID_RATE_UNIT" (
         CHECK (unit_kind IN ('currency', 'index_unit'))
 );
 
-CREATE TABLE IF NOT EXISTS "FID_RATE_VALUE" (
+CREATE TABLE IF NOT EXISTS "REF_RATE_VALUE" (
     id            BIGSERIAL     PRIMARY KEY,
-    currency_code CHAR(3)       NOT NULL REFERENCES "FID_RATE_UNIT"(code),
+    currency_code CHAR(3)       NOT NULL REFERENCES "REF_RATE_UNIT"(code),
     rate_date     DATE          NOT NULL,
     value_clp     NUMERIC(18,6) NOT NULL CHECK (value_clp > 0),
     source        VARCHAR(40)   NOT NULL DEFAULT 'manual',
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS "FID_RATE_VALUE" (
     UNIQUE (currency_code, rate_date)
 );
 
-CREATE TABLE IF NOT EXISTS "FID_ECON_INDEX" (
+CREATE TABLE IF NOT EXISTS "REF_ECON_INDEX" (
     id             BIGSERIAL     PRIMARY KEY,
     code           VARCHAR(20)   NOT NULL,
     accrual_year    SMALLINT      NOT NULL CHECK (accrual_year BETWEEN 1990 AND 2100),
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS "FID_ECON_INDEX" (
     CONSTRAINT uq_economic_indices UNIQUE (code, accrual_year, accrual_month)
 );
 
-CREATE TABLE IF NOT EXISTS "FID_TAX_BRCKT" (
+CREATE TABLE IF NOT EXISTS "REF_TAX_BRCKT" (
     id              BIGSERIAL     PRIMARY KEY,
     valid_from      DATE          NOT NULL,
     valid_to        DATE,
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS "FID_TAX_BRCKT" (
     UNIQUE (valid_from, lower_bound_utm)
 );
 
-CREATE TABLE IF NOT EXISTS "FID_EXPORT_JOB" (
+CREATE TABLE IF NOT EXISTS "REF_EXPORT_JOB" (
     id                   BIGSERIAL     PRIMARY KEY,
     status               VARCHAR(20)   NOT NULL DEFAULT 'pending'
         CONSTRAINT chk_rat_export_job_status
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS "FID_EXPORT_JOB" (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rat_export_job_status_created
-    ON "FID_EXPORT_JOB" (status, created_at);
+    ON "REF_EXPORT_JOB" (status, created_at);
 
 -- ============================================================
 -- 2. Reference data — pension & health institutions
