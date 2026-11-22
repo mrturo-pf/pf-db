@@ -340,13 +340,13 @@ Any Cloud Run deployment that consumes this DB must run `alembic upgrade head` b
 **Production workflow:**
 ```
 1. pf-db Cloud Run Job: alembic upgrade head
-2. pf-rates Cloud Run Service: starts receiving traffic
+2. pf-svc-reference Cloud Run Service: starts receiving traffic
 3. pf-svc-income Cloud Run Service: starts receiving traffic
 ```
 
 ### 2. No application code
 
-This repo has no `src/`, no FastAPI routes, no business logic. ORM models live in the consuming microservices (pf-rates, pf-svc-income).
+This repo has no `src/`, no FastAPI routes, no business logic. ORM models live in the consuming microservices (pf-svc-reference, pf-svc-income).
 
 ### 3. No autogenerate
 
@@ -539,7 +539,7 @@ jobs:
   
   deploy-services:
     needs: migrate
-    # ... deploy pf-rates and pf-svc-income
+    # ... deploy pf-svc-reference and pf-svc-income
 ```
 
 The Cloud Run Job:

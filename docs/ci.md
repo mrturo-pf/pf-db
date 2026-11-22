@@ -281,7 +281,7 @@ Set the following GitHub Secrets:
 
 ## Deployment coordination
 
-pf-db migrations must complete **before** pf-rates and pf-svc-income deploy.
+pf-db migrations must complete **before** pf-svc-reference and pf-svc-income deploy.
 
 ### Correct order
 
@@ -289,7 +289,7 @@ pf-db migrations must complete **before** pf-rates and pf-svc-income deploy.
 1. pf-db: Run Cloud Run Job (alembic upgrade head)
    └─> wait for completion
 
-2. pf-rates: Deploy Cloud Run Service
+2. pf-svc-reference: Deploy Cloud Run Service
    └─> can now serve traffic
 
 3. pf-svc-income: Deploy Cloud Run Service
@@ -311,9 +311,9 @@ jobs:
     needs: migrate
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy pf-rates
+      - name: Deploy pf-svc-reference
         run: |
-          gcloud run deploy pf-rates ...
+          gcloud run deploy pf-svc-reference ...
   
   deploy-payroll:
     needs: migrate
@@ -336,7 +336,7 @@ always-on service: you pay only for the seconds it actually runs, not idle time.
 
 ### 2. Migrations before traffic
 
-The `pf-db` Cloud Run Job must complete before pf-rates or pf-svc-income receive traffic.
+The `pf-db` Cloud Run Job must complete before pf-svc-reference or pf-svc-income receive traffic.
 
 **Why:** Ensures schema is up-to-date before application code runs.
 
@@ -395,5 +395,5 @@ Never use `alembic revision --autogenerate`.
 - [Getting Started](getting-started.md) - Installation and setup
 - [Development Guide](development.md) - Make commands and workflows
 - [Migrations Guide](migrations.md) - Creating and managing migrations
-- [pf-rates Deployment Guide](https://github.com/mrturo-pf/pf-rates/blob/main/docs/deployment.md) - Service deployment
+- [pf-svc-reference Deployment Guide](https://github.com/mrturo-pf/pf-svc-reference/blob/main/docs/deployment.md) - Service deployment
 - [pf-svc-income Deployment Guide](https://github.com/mrturo-pf/pf-svc-income/blob/main/docs/deployment.md) - Service deployment

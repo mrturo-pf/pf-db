@@ -261,9 +261,9 @@ Default credentials:
 
 Once pf-db is running, you can start the consuming microservices:
 
-**pf-rates:**
+**pf-svc-reference:**
 ```bash
-cd ../pf-rates
+cd ../pf-svc-reference
 make local-up
 ```
 
@@ -277,7 +277,7 @@ Both services verify that pf-db is running before starting.
 
 ## See also
 
-- [pf-rates README](https://github.com/mrturo-pf/pf-rates/blob/main/README.md) - Financial rates microservice
+- [pf-svc-reference README](https://github.com/mrturo-pf/pf-svc-reference/blob/main/README.md) - Financial rates microservice
 - [pf-svc-income README](https://github.com/mrturo-pf/pf-svc-income/blob/main/README.md) - Payroll microservice
 - [Development Guide](development.md) - Complete development workflow
 - [Tables Reference](tables.md) - Schema documentation
