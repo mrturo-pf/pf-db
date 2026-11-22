@@ -34,7 +34,7 @@ pf-db/
 
 ## Table ownership
 
-Current tables follow the `RAT_*` (pf-rates) / `INC_*` (pf-svc-income) naming convention
+Current tables follow the `RAT_*` (pf-svc-reference) / `INC_*` (pf-svc-income) naming convention
 introduced by the production schema migration (uppercase, service prefix, maximum 30 ASCII
 characters for table/materialized-view names). Migration `0003` is retained as historical
 context for the original `INC_*` names. PostgreSQL's technical ceiling is
@@ -55,7 +55,7 @@ contract. Consumers should prefer documented service APIs when one exists.
 
 | Microservice | Domain | Connection env var | Repo |
 |---|---|---|---|
-| `pf-rates` | financial rates | `PF_DATABASE_URL` | `../pf-rates` |
+| `pf-svc-reference` | financial rates | `PF_DATABASE_URL` | `../pf-svc-reference` |
 | `pf-svc-income` | payroll | `PF_DATABASE_URL` | `../pf-svc-income` |
 
 Both services connect to the same PostgreSQL instance managed by this repo.
@@ -63,7 +63,7 @@ Each keeps its own SQLAlchemy ORM models and repositories — no ORM code lives 
 
 ## Service database identity policy
 
-`pf-db` owns the database role and grant contract consumed by `pf-rates` and
+`pf-db` owns the database role and grant contract consumed by `pf-svc-reference` and
 `pf-svc-income`. Every service must have its own login user/role with explicit,
 least-privilege permissions for its domain. Runtime identities must not be
 shared between services and must not be an owner, superuser, migrator, backup,
@@ -227,7 +227,7 @@ See [`docs/ci.md`](docs/ci.md) for the complete CI guide:
 - Migration application workflow (Cloud Run Job)
 - Common CI failures and solutions
 - Rollback strategy
-- Deployment coordination with pf-rates and pf-svc-income
+- Deployment coordination with pf-svc-reference and pf-svc-income
 
 Quick reference:
 

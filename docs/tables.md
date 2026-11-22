@@ -10,7 +10,7 @@ around.
 ## Overview
 
 pf-db manages **20 tables** across two domains:
-- **Financial rates:** 5 tables (owned by pf-rates)
+- **Financial rates:** 5 tables (owned by pf-svc-reference)
 - **Payroll:** 15 tables + 1 materialized view (owned by pf-svc-income)
 
 Payroll models a **single person's own payroll across one or more employers** over
@@ -38,7 +38,7 @@ Ownership means: only the microservices that own a domain **write** to those tab
 
 | Tables | Domain | Owner | Access pattern |
 |---|---|---|
-| `REF_RATE_UNIT`, `REF_RATE_VALUE`, `REF_ECON_INDEX`, `REF_TAX_BRCKT`, `REF_EXPORT_JOB` | Financial rates | [pf-rates](https://github.com/mrturo-pf/pf-rates) | pf-svc-income reads via HTTP API (never direct SQL) |
+| `REF_RATE_UNIT`, `REF_RATE_VALUE`, `REF_ECON_INDEX`, `REF_TAX_BRCKT`, `REF_EXPORT_JOB` | Financial rates | [pf-svc-reference](https://github.com/mrturo-pf/pf-svc-reference) | pf-svc-income reads via HTTP API (never direct SQL) |
 | All others (15 tables + 1 view) | Payroll | [pf-svc-income](https://github.com/mrturo-pf/pf-svc-income) | Exclusive write access |
 
 ## Connection string
@@ -71,7 +71,7 @@ see [`development.md`](development.md) for the Make targets that run them:
 Supported currencies **and index units** (UF/UTM are not fiat currencies but share
 this table, distinguished by `unit_kind`).
 
-**Owner:** pf-rates
+**Owner:** pf-svc-reference
 
 **Schema:**
 ```sql
@@ -102,7 +102,7 @@ file get deleted):
 
 Historical exchange rates (CLP value for foreign currencies and index units).
 
-**Owner:** pf-rates
+**Owner:** pf-svc-reference
 
 **Schema:**
 ```sql
@@ -130,7 +130,7 @@ credentials for `USD`/`EUR`). `source` records which provider resolved that row.
 Economic indices (`UF`, `UTM`, `IPC_CL`) with monthly values and period-over-period
 change rates.
 
-**Owner:** pf-rates
+**Owner:** pf-svc-reference
 
 **Schema:**
 ```sql
@@ -163,7 +163,7 @@ startup background sync.
 Income tax brackets for Chilean monthly withholding, as **valid-date ranges** rather
 than one row per calendar year.
 
-**Owner:** pf-rates
+**Owner:** pf-svc-reference
 
 **Schema:**
 ```sql
@@ -191,7 +191,7 @@ Async CSV export job tracking (`POST /exports/financial-data {"async": true}`),
 including cooperative cancellation
 (`POST /exports/jobs/{job_id}/stop` and the bulk `POST /exports/jobs/stop`).
 
-**Owner:** pf-rates
+**Owner:** pf-svc-reference
 
 **Schema:**
 ```sql
@@ -223,7 +223,7 @@ now-removed `POST /exchange-rates/export`, or `'combined'` for
 discriminator no longer distinguished between anything and was removed.
 
 `cancel_requested_at` (added in migration `0005`) is set once a stop is requested and
-polled cooperatively by the running export loop -- pf-rates has no message queue in
+polled cooperatively by the running export loop -- pf-svc-reference has no message queue in
 front of it (Cloud Run + BackgroundTasks only, by deliberate cost choice), so a job
 stops itself at its next checkpoint rather than being force-killed instantly from
 another instance.
@@ -884,13 +884,13 @@ current refresh call uses it.
 External Sources (Mindicador, BCCh, SII)
   |
   v
-pf-rates (/refresh endpoints + startup background sync)
+pf-svc-reference (/refresh endpoints + startup background sync)
   |
   v
 PostgreSQL (REF_RATE_UNIT, REF_RATE_VALUE, REF_ECON_INDEX, REF_TAX_BRCKT)
   |
   v
-pf-rates (GET endpoints)
+pf-svc-reference (GET endpoints)
   |
   v
 pf-svc-income (HTTP client, MarketDataRepository)
@@ -907,5 +907,5 @@ pf-svc-income (API + PDF reports)
 - [Getting Started](getting-started.md) - Installation and setup
 - [Development Guide](development.md) - Make commands and workflows
 - [Migrations Guide](migrations.md) - Creating and managing migrations
-- [pf-rates AGENTS.md](https://github.com/mrturo-pf/pf-rates/blob/main/AGENTS.md) - Financial rates microservice
+- [pf-svc-reference AGENTS.md](https://github.com/mrturo-pf/pf-svc-reference/blob/main/AGENTS.md) - Financial rates microservice
 - [pf-svc-income AGENTS.md](https://github.com/mrturo-pf/pf-svc-income/blob/main/AGENTS.md) - Payroll microservice
