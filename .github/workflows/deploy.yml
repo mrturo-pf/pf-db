@@ -71,14 +71,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.0
 
-      - name: Checkout pf-common for composite actions
+      - name: Checkout pf-svc-common for composite actions
         uses: actions/checkout@v7.0.0
         with:
-          repository: mrturo-pf/pf-common
-          path: .pf-common
+          repository: mrturo-pf/pf-svc-common
+          path: .pf-svc-common
 
       - name: Setup Python with dependencies
-        uses: ./.pf-common/.github/actions/setup-python-deps
+        uses: ./.pf-svc-common/.github/actions/setup-python-deps
         with:
           python-version: '3.14'
           cache-dependency-path: pyproject.toml
@@ -109,14 +109,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.0
 
-      - name: Checkout pf-common for composite actions
+      - name: Checkout pf-svc-common for composite actions
         uses: actions/checkout@v7.0.0
         with:
-          repository: mrturo-pf/pf-common
-          path: .pf-common
+          repository: mrturo-pf/pf-svc-common
+          path: .pf-svc-common
 
       - name: Setup Python with dependencies
-        uses: ./.pf-common/.github/actions/setup-python-deps
+        uses: ./.pf-svc-common/.github/actions/setup-python-deps
         with:
           python-version: '3.12'
           cache-dependency-path: pyproject.toml
@@ -216,14 +216,14 @@ jobs:
        needs.migrate.result == 'failure')
 
     steps:
-      - name: Checkout pf-common for composite actions
+      - name: Checkout pf-svc-common for composite actions
         uses: actions/checkout@v7.0.0
         with:
-          repository: mrturo-pf/pf-common
-          path: .pf-common
+          repository: mrturo-pf/pf-svc-common
+          path: .pf-svc-common
 
       - name: Send failure email
-        uses: ./.pf-common/.github/actions/send-email
+        uses: ./.pf-svc-common/.github/actions/send-email
         with:
           mail_server: ${{ secrets.MAIL_SERVER }}
           mail_port: ${{ secrets.MAIL_PORT }}
@@ -254,14 +254,14 @@ jobs:
       needs.changes.result == 'success' && needs.migrate.result == 'success'
 
     steps:
-      - name: Checkout pf-common for composite actions
+      - name: Checkout pf-svc-common for composite actions
         uses: actions/checkout@v7.0.0
         with:
-          repository: mrturo-pf/pf-common
-          path: .pf-common
+          repository: mrturo-pf/pf-svc-common
+          path: .pf-svc-common
 
       - name: Send success email
-        uses: ./.pf-common/.github/actions/send-email
+        uses: ./.pf-svc-common/.github/actions/send-email
         with:
           mail_server: ${{ secrets.MAIL_SERVER }}
           mail_port: ${{ secrets.MAIL_PORT }}
