@@ -19,7 +19,7 @@ pf-db/
 │   └── versions/
 │       ├── 0001_rates_schema.py   # currencies, exchange_rates, economic_indices, income_tax_brackets
 │       ├── 0002_payroll_schema.py # pension/health/contribution tables + employers + payroll core + mv
-│       ├── 0003_rename_tables_service_prefix.py # historical RAT_*/INC_* prefix migration; current payroll objects use INC_*
+│       ├── 0003_rename_tables_service_prefix.py # historical REF_*/INC_* prefix migration; current payroll objects use INC_*
 │       └── 0004_export_jobs_table.py # REF_EXPORT_JOB: async CSV export job tracking
 ├── db/
 │   ├── 01_schema.sql              # idempotent DDL reference (do NOT run in production)
@@ -34,7 +34,7 @@ pf-db/
 
 ## Table ownership
 
-Current tables follow the `RAT_*` (pf-svc-reference) / `INC_*` (pf-svc-income) naming convention
+Current tables follow the `REF_*` (pf-svc-reference) / `INC_*` (pf-svc-income) naming convention
 introduced by the production schema migration (uppercase, service prefix, maximum 30 ASCII
 characters for table/materialized-view names). Migration `0003` is retained as historical
 context for the original `INC_*` names. PostgreSQL's technical ceiling is

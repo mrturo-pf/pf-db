@@ -24,7 +24,7 @@ New and renamed schema objects follow the `pf-db` identifier policy:
 - PostgreSQL's technical ceiling is **63 UTF-8 bytes** for every identifier;
 - table and materialized-view business names use at most **30 ASCII characters**;
 - table/materialized-view names are uppercase and use an explicit service prefix:
-  `RAT_`, `INC_`, or `INC_`;
+  `REF_` or `INC_`;
 - sequences, indexes, constraints, schemas, and other auxiliary identifiers must
   remain below 63 bytes and use explicit deterministic names;
 - migrations must never rely on PostgreSQL's automatic identifier truncation;
@@ -349,7 +349,7 @@ CREATE TABLE "INC_PENS_PLAN" (
 
 Health plan **tiers**, one or more per institution, each valid over a date range
 with its own `contracted_uf`. A single payroll period is typically linked to
-*multiple* rows here at once via `INC_PRD_HLTH` (e.g. `Base` + `GES` + `Adicionales`
+*multiple* rows here at once via `INC_PAY_PRD_HLTH` (e.g. `Base` + `GES` + `Adicionales`
 tiers for the same Isapre) -- see
 [`https://github.com/mrturo-pf/pf-improvements/blob/main/improvements/HIST-010-health-additional-uf-mismatch/investigation.md`](https://github.com/mrturo-pf/pf-improvements/blob/main/improvements/HIST-010-health-additional-uf-mismatch/investigation.md)
 for the domain logic (`prorated_contracted_uf()` /
@@ -608,7 +608,7 @@ Contract selection is resolved through `INC_EMP_CONT` by employer and payment da
 
 ---
 
-### INC_PRD_HLTH
+### INC_PAY_PRD_HLTH
 
 Junction table: which health plan tier(s) apply to a given period. Composite
 primary key, no surrogate `id` -- a period commonly links to more than one row here
@@ -618,7 +618,7 @@ at once (e.g. `Base` + `GES` + `Adicionales`, see `INC_HLTH_PLAN` above).
 
 **Schema:**
 ```sql
-CREATE TABLE "INC_PRD_HLTH" (
+CREATE TABLE "INC_PAY_PRD_HLTH" (
     payroll_id      BIGINT NOT NULL REFERENCES "INC_PAYROLL"(id) ON DELETE CASCADE,
     health_plan_id BIGINT NOT NULL REFERENCES "INC_HLTH_PLAN"(id),
     PRIMARY KEY (payroll_id, health_plan_id)
@@ -630,16 +630,16 @@ directly by the import flow.
 
 ---
 
-### INC_PRD_COMP
+### INC_PAY_PRD_COMP
 
 Junction table: which complementary insurance plan(s) apply to a given period.
-Composite primary key, same shape as `INC_PRD_HLTH`.
+Composite primary key, same shape as `INC_PAY_PRD_HLTH`.
 
 **Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "INC_PRD_COMP" (
+CREATE TABLE "INC_PAY_PRD_COMP" (
     payroll_id                       BIGINT NOT NULL
         REFERENCES "INC_PAYROLL"(id) ON DELETE CASCADE,
     complementary_insurance_plan_id BIGINT NOT NULL
@@ -648,11 +648,11 @@ CREATE TABLE "INC_PRD_COMP" (
 );
 ```
 
-**No seed file** -- assigned the same way as `INC_PRD_HLTH`.
+**No seed file** -- assigned the same way as `INC_PAY_PRD_HLTH`.
 
 ---
 
-### INC_CONCEPT
+### INC_PAY_CONCEPT
 
 Payroll concept catalog (income lines and discount lines). Closed, seeded catalog --
 `concept_code` values used elsewhere (e.g. PDF import row resolution) must match a
@@ -662,7 +662,7 @@ Payroll concept catalog (income lines and discount lines). Closed, seeded catalo
 
 **Schema:**
 ```sql
-CREATE TABLE "INC_CONCEPT" (
+CREATE TABLE "INC_PAY_CONCEPT" (
     id         BIGSERIAL    PRIMARY KEY,
     code       VARCHAR(40)  NOT NULL UNIQUE,
     name       VARCHAR(120) NOT NULL,
@@ -700,7 +700,7 @@ CREATE TABLE "INC_CONCEPT" (
 
 ---
 
-### INC_ITEM
+### INC_PAY_ITEM
 
 Individual payroll line items -- one row per concept per period.
 
@@ -708,20 +708,20 @@ Individual payroll line items -- one row per concept per period.
 
 **Schema:**
 ```sql
-CREATE TABLE "INC_ITEM" (
+CREATE TABLE "INC_PAY_ITEM" (
     id         BIGSERIAL     PRIMARY KEY,
     payroll_id  BIGINT        NOT NULL REFERENCES "INC_PAYROLL"(id) ON DELETE CASCADE,
-    concept_id BIGINT        NOT NULL REFERENCES "INC_CONCEPT"(id),
+    concept_id BIGINT        NOT NULL REFERENCES "INC_PAY_CONCEPT"(id),
     amount_clp NUMERIC(18,2) NOT NULL,
     notes      TEXT,
     created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_payroll_items_payroll_id  ON "INC_ITEM"(payroll_id);
-CREATE INDEX idx_payroll_items_concept_id ON "INC_ITEM"(concept_id);
+CREATE INDEX idx_payroll_items_payroll_id  ON "INC_PAY_ITEM"(payroll_id);
+CREATE INDEX idx_payroll_items_concept_id ON "INC_PAY_ITEM"(concept_id);
 ```
 
-### INC_PDF_TEMPLATE
+### INC_PAY_PDF_TEMPLATE
 
 Employer-specific payroll PDF payslip templates (raw-label -> `concept_code` mapping
 rules), managed via `pf-svc-income`'s `/payroll/templates` CRUD endpoints. Replaces the
@@ -733,7 +733,7 @@ and `-plan.md`.
 
 **Schema:**
 ```sql
-CREATE TABLE "INC_PDF_TEMPLATE" (
+CREATE TABLE "INC_PAY_PDF_TEMPLATE" (
     id                     BIGSERIAL     PRIMARY KEY,
     template_id            VARCHAR(80)   NOT NULL UNIQUE,
     employer_id            BIGINT        NOT NULL REFERENCES "INC_EMPLOYER"(id),
@@ -744,7 +744,7 @@ CREATE TABLE "INC_PDF_TEMPLATE" (
     updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_pay_pdf_template_is_active ON "INC_PDF_TEMPLATE"(is_active);
+CREATE INDEX idx_pay_pdf_template_is_active ON "INC_PAY_PDF_TEMPLATE"(is_active);
 ```
 
 - `employer_id` is **required** (`NOT NULL`, since migration `0012`) -- a template
@@ -773,47 +773,47 @@ former JSON file).
 
 ---
 
-### INC_PDF_TEMPLATE_FIELD
+### INC_PAY_PDF_TEMPLATE_FIELD
 
-One row per label-matching rule within a `INC_PDF_TEMPLATE` (1:N).
+One row per label-matching rule within a `INC_PAY_PDF_TEMPLATE` (1:N).
 
 **Owner:** pf-svc-income
 
 **Schema:**
 ```sql
-CREATE TABLE "INC_PDF_TEMPLATE_FIELD" (
+CREATE TABLE "INC_PAY_PDF_TEMPLATE_FIELD" (
     id                BIGSERIAL     PRIMARY KEY,
     template_id       BIGINT        NOT NULL
-        REFERENCES "INC_PDF_TEMPLATE"(id) ON DELETE CASCADE,
+        REFERENCES "INC_PAY_PDF_TEMPLATE"(id) ON DELETE CASCADE,
     pdf_label_pattern VARCHAR(500)  NOT NULL,
-    concept_id        BIGINT        NOT NULL REFERENCES "INC_CONCEPT"(id),
+    concept_id        BIGINT        NOT NULL REFERENCES "INC_PAY_CONCEPT"(id),
     confidence        NUMERIC(3,2)  NOT NULL DEFAULT 0.90 CHECK (confidence BETWEEN 0 AND 1)
 );
 
-CREATE INDEX idx_pay_pdf_template_field_concept_id ON "INC_PDF_TEMPLATE_FIELD"(concept_id);
-CREATE INDEX idx_pay_pdf_template_field_template_id ON "INC_PDF_TEMPLATE_FIELD"(template_id);
+CREATE INDEX idx_pay_pdf_template_field_concept_id ON "INC_PAY_PDF_TEMPLATE_FIELD"(concept_id);
+CREATE INDEX idx_pay_pdf_template_field_template_id ON "INC_PAY_PDF_TEMPLATE_FIELD"(template_id);
 ```
 
-- `concept_id` carries a real FK to `INC_CONCEPT(id)` -- an integrity upgrade the
+- `concept_id` carries a real FK to `INC_PAY_CONCEPT(id)` -- an integrity upgrade the
   old hand-edited JSON format could not offer: a typo'd concept reference there
   silently produced a field that never resolves to a real concept, only
   discoverable at `pdf-preview` time against a real PDF. A write with an unknown
   `concept_code` is rejected by the application layer with a 400 before it ever
   reaches this FK (see `interfaces/api/routes/pdf_templates.py`'s
   `_resolve_field_dtos()`). The column is `concept_id`, not `concept_code`, since
-  migration `0011` -- every other table referencing `INC_CONCEPT` already does so
-  by its surrogate id (`INC_ITEM.concept_id`); the original `concept_code VARCHAR(40)
-  REFERENCES INC_CONCEPT(code)` from migration `0009` was the one inconsistent
+  migration `0011` -- every other table referencing `INC_PAY_CONCEPT` already does so
+  by its surrogate id (`INC_PAY_ITEM.concept_id`); the original `concept_code VARCHAR(40)
+  REFERENCES INC_PAY_CONCEPT(code)` from migration `0009` was the one inconsistent
   outlier, not a deliberate choice. `concept_code` remains the business-facing
   identifier at the application layer (requests, responses, `CONCEPT_MAP`, the
   PDF-matching engine) -- only this storage column changed, resolved at the
   repository boundary.
 - There is deliberately **no `kind` column** (removed in migration `0010` -- it used to
-  duplicate `INC_CONCEPT.kind` with no referential integrity tying the two copies
+  duplicate `INC_PAY_CONCEPT.kind` with no referential integrity tying the two copies
   together, letting a write set a `kind` that contradicted its own concept's
   real kind). The application layer (pf-svc-income) always resolves `kind` from
-  `INC_CONCEPT` via `concept_id` at read time instead.
-- Deleting a `INC_PDF_TEMPLATE` row (never done by the API -- logical delete only)
+  `INC_PAY_CONCEPT` via `concept_id` at read time instead.
+- Deleting a `INC_PAY_PDF_TEMPLATE` row (never done by the API -- logical delete only)
   would cascade here; in practice this only ever fires if a row is removed by hand.
 
 **Seed:** `db/04_seed_real.sql` (the 20 fields of the real `walmart-chile-v1` template).
@@ -843,8 +843,8 @@ SELECT
     SUM(CASE WHEN c.kind = 'income'   THEN i.amount_clp ELSE 0 END) -
     SUM(CASE WHEN c.kind = 'discount' THEN i.amount_clp ELSE 0 END) AS net_pay_clp
 FROM "INC_PAYROLL"  p
-JOIN "INC_ITEM"    i ON i.payroll_id  = p.id
-JOIN "INC_CONCEPT" c ON c.id = i.concept_id
+JOIN "INC_PAY_ITEM"    i ON i.payroll_id  = p.id
+JOIN "INC_PAY_CONCEPT" c ON c.id = i.concept_id
 GROUP BY p.id;
 
 CREATE UNIQUE INDEX idx_pay_mv_sumary_period ON "INC_MV_PAY_SUMMARY"(payroll_id);
@@ -855,7 +855,7 @@ CREATE UNIQUE INDEX idx_pay_mv_sumary_period ON "INC_MV_PAY_SUMMARY"(payroll_id)
 REFRESH MATERIALIZED VIEW "INC_MV_PAY_SUMMARY";
 ```
 Run **without** `CONCURRENTLY` (it happens inside the same transaction as the
-`INC_ITEM` writes that trigger it, in
+`INC_PAY_ITEM` writes that trigger it, in
 `payroll_repository_shared.py`, and `CONCURRENTLY` cannot run inside a transaction
 block) -- the unique index above exists for future flexibility, not because the
 current refresh call uses it.
@@ -868,12 +868,12 @@ current refresh call uses it.
 [INC_EMPLOYER] 1---N [INC_PAYROLL]
 
 [INC_PENS_INST] 1---N [INC_PENS_PLAN] 1---N [INC_PAYROLL] (pension_plan_id)
-[INC_HLTH_INST] 1---N [INC_HLTH_PLAN] N---N [INC_PAYROLL] (via INC_PRD_HLTH)
-[INC_COMP_PROV] 1---N [INC_COMP_PLAN] N---N [INC_PAYROLL] (via INC_PRD_COMP)
+[INC_HLTH_INST] 1---N [INC_HLTH_PLAN] N---N [INC_PAYROLL] (via INC_PAY_PRD_HLTH)
+[INC_COMP_PROV] 1---N [INC_COMP_PLAN] N---N [INC_PAYROLL] (via INC_PAY_PRD_COMP)
 
-[INC_PAYROLL] 1---N [INC_ITEM] N---1 [INC_CONCEPT]
+[INC_PAYROLL] 1---N [INC_PAY_ITEM] N---1 [INC_PAY_CONCEPT]
 
-[INC_EMPLOYER] 1---N [INC_PDF_TEMPLATE] 1---N [INC_PDF_TEMPLATE_FIELD] N---1 [INC_CONCEPT]
+[INC_EMPLOYER] 1---N [INC_PAY_PDF_TEMPLATE] 1---N [INC_PAY_PDF_TEMPLATE_FIELD] N---1 [INC_PAY_CONCEPT]
 
 [REF_RATE_UNIT] 1---N [REF_RATE_VALUE]
 ```
